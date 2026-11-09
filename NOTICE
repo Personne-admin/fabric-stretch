@@ -1,0 +1,48 @@
+fabric-stretch
+Copyright 2026 The fabric-stretch authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It contains, uses or fetches the third-party works listed below.
+Where a licence is not recorded here, check the upstream project before using or
+redistributing it.
+
+1. CoWTracker (point tracking)
+
+   https://github.com/facebookresearch/cowtracker (revision pinned in
+   server/tracker.env.example) and the model weights `facebook/cowtracker` on
+   Hugging Face. Code and weights are licensed CC-BY-NC-4.0 (Creative Commons
+   Attribution-NonCommercial 4.0 International), i.e. for non-commercial use only. Neither
+   the code nor the weights are distributed with fabric-stretch. `server/bootstrap.sh`
+   downloads them to your machine. Their licence applies to the downloaded copies; the
+   Apache-2.0 licence of this repository does not apply to them. The Docker recipe in
+   server/ does not bundle the checkpoint.
+   Tracks produced with CoWTracker (`tracks.json`) are data. Whether your use of a result
+   is "non-commercial" is for you to judge under the upstream licence.
+   If you do not accept that licence, do not run server/bootstrap.sh. Everything else in
+   this repository works with tracks from another source in the same file format
+   (docs/formats.md).
+
+2. vggt and Depth-Anything-V2
+
+   CoWTracker imports these two projects as git submodules, and `server/bootstrap.sh`
+   fetches them with it:
+   - vggt, https://github.com/facebookresearch/vggt
+   - Depth-Anything-V2, https://github.com/DepthAnything/Depth-Anything-V2
+   Their licences are not recorded in this repository. Check them upstream.
+   Their terms apply to the copies that bootstrap.sh installs.
+
+3. Other dependencies
+
+   fabric-stretch depends on open source libraries (Rust crates such as egui/eframe,
+   wgpu, serde, and Python packages numpy, opencv-python-headless, Pillow and pyserial).
+   Cargo and pip install them under their own licences. If you distribute a binary (for example the Windows build of the rig app or of the viewer), you
+   are responsible for including the notices that those licences require: `cargo
+   about`/`cargo license` and `pip-licenses` list them.
+   Hardware SDKs (IDS uEye / pyueye for the camera) are vendor software and are
+   not distributed here.
+
+4. Measurement data
+
+   examples/demo/ is a small downscaled extract of a measurement made by the project
+   authors, published under the licence of this repository.

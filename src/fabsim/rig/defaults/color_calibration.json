@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "diffuse": {
+    "version": 1,
+    "fit_type": "affine",
+    "coefficients": [
+      [
+        1.0353097640160709,
+        0.5569579792339443,
+        0.07020984928246397
+      ],
+      [
+        0.4468810000303695,
+        1.0646892911814703,
+        0.14275868926169266
+      ],
+      [
+        -0.012107673476791647,
+        -0.13271872193331846,
+        0.9560838359210087
+      ],
+      [
+        -0.016739356379077808,
+        -0.01621076075790262,
+        -0.02477296599158152
+      ]
+    ],
+    "input_encoding": "linear",
+    "input_scale": 255.0,
+    "reference_white": "D65",
+    "output_space": "sRGB D65",
+    "exposure_ms": 15.0,
+    "channel_order": "RGB",
+    "source_file": "fabric_001/warp_loading/images/img_0000_diffuse.png",
+    "fitted_at": "2026-10-20T13:02:31.165199+00:00"
+  },
+  "point_light": {
+    "version": 1,
+    "fit_type": "affine",
+    "coefficients": [
+      [
+        0.6426785849517904,
+        0.3697083803408802,
+        0.02224873685305171
+      ],
+      [
+        0.5924552637651178,
+        1.1918132829012476,
+        0.4509220915143858
+      ],
+      [
+        0.05711126787828537,
+        -0.13675871397473038,
+        2.441329859216853
+      ],
+      [
+        -0.01609666342855176,
+        -0.015168750914044127,
+        -0.019977478440847962
+      ]
+    ],
+    "input_encoding": "linear",
+    "input_scale": 255.0,
+    "reference_white": "D65",
+    "output_space": "sRGB D65",
+    "exposure_ms": 15.0,
+    "channel_order": "RGB",
+    "source_file": "fabric_001/warp_loading/images/img_0000_ps_1.png; fabric_001/warp_loading/images/img_0000_ps_2.png; fabric_001/warp_loading/images/img_0000_ps_3.png",
+    "fitted_at": "2026-10-20T13:03:07.294589+00:00"
+  }
+}

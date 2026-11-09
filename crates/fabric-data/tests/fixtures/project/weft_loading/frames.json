@@ -1,0 +1,62 @@
+{
+  "sample_id": "fixture",
+  "test_id": "weft_stretch_20260101_100000",
+  "direction": "weft",
+  "branch": "loading",
+  "motion_mode": "loading",
+  "clamp_width_m": 0.2,
+  "commanded_motor_steps_per_increment": 8000,
+  "requested_displacement_um_per_increment": 1224.4897959183675,
+  "screw_pitch_um_per_output_rev": 1500.0,
+  "gear_ratio": 49.0,
+  "motor_full_steps_per_rev": 200,
+  "microsteps": 1,
+  "motor_steps_per_output_rev": 9800,
+  "linear_um_per_motor_step": 0.15306122448979592,
+  "frames": [
+    {
+      "frame_id": 0,
+      "step_index": 0,
+      "displacement_mm": 0.0,
+      "force_json_index": 0,
+      "force_csv_row": 0,
+      "line_load_N_per_m": 0.0,
+      "settle_ms": 50,
+      "is_relaxation_hold": false,
+      "image_diffuse": "img_0000_diffuse.png"
+    },
+    {
+      "frame_id": 1,
+      "step_index": 1,
+      "displacement_mm": 1.0,
+      "force_json_index": 1,
+      "force_csv_row": 1,
+      "line_load_N_per_m": 5.0,
+      "settle_ms": 50,
+      "is_relaxation_hold": false,
+      "image_diffuse": "img_0001_diffuse.png"
+    },
+    {
+      "frame_id": 2,
+      "step_index": 2,
+      "displacement_mm": 1.0,
+      "force_json_index": 2,
+      "force_csv_row": 2,
+      "line_load_N_per_m": 4.5,
+      "settle_ms": 50,
+      "is_relaxation_hold": true,
+      "image_diffuse": "img_0002_diffuse.png"
+    },
+    {
+      "frame_id": 3,
+      "step_index": 3,
+      "displacement_mm": 2.0,
+      "force_json_index": 3,
+      "force_csv_row": 3,
+      "line_load_N_per_m": 10.0,
+      "settle_ms": 50,
+      "is_relaxation_hold": false,
+      "image_diffuse": "img_0003_diffuse.png"
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "format": "fabsim-ps-frames",
+  "version": 1,
+  "light": {
+    "azimuths_deg": [
+      91.91,
+      331.45,
+      208.24
+    ],
+    "elevation_deg": 45.0,
+    "source": "session.json:led_config"
+  },
+  "gains": [
+    1.0217391286390378,
+    1.0,
+    0.9782608713609622
+  ],
+  "gains_mode": "per-frame",
+  "albedo_scale": 0.5872310400009155,
+  "albedo_encoding": "linear RGB 8-bit; albedo = value/255*albedo_scale",
+  "normal_encoding": "16-bit RGB; n = 2*v/65535-1; x=image right, y=image up, z=toward camera",
+  "quality": {
+    "reference_frame_id": 0,
+    "albedo_diffuse_correlation": 0.916,
+    "mean_normal_tilt_deg": 0.53,
+    "exposure_gain": 1.9464089344703537,
+    "warnings": []
+  },
+  "frames": [
+    {
+      "frame_id": 0,
+      "albedo": "img_0000_albedo.png",
+      "normal": "img_0000_normal.png",
+      "gains": [
+        1.00781,
+        1.00781,
+        0.98438
+      ]
+    },
+    {
+      "frame_id": 10,
+      "albedo": "img_0010_albedo.png",
+      "normal": "img_0010_normal.png",
+      "gains": [
+        1.00781,
+        1.00781,
+        0.98438
+      ]
+    },
+    {
+      "frame_id": 20,
+      "albedo": "img_0020_albedo.png",
+      "normal": "img_0020_normal.png",
+      "gains": [
+        1.01538,
+        0.99231,
+        0.99231
+      ]
+    },
+    {
+      "frame_id": 30,
+      "albedo": "img_0030_albedo.png",
+      "normal": "img_0030_normal.png",
+      "gains": [
+        1.01504,
+        0.99248,
+        0.99248
+      ]
+    },
+    {
+      "frame_id": 41,
+      "albedo": "img_0041_albedo.png",
+      "normal": "img_0041_normal.png",
+      "gains": [
+        1.02222,
+        1.0,
+        0.97778
+      ]
+    },
+    {
+      "frame_id": 51,
+      "albedo": "img_0051_albedo.png",
+      "normal": "img_0051_normal.png",
+      "gains": [
+        1.02174,
+        1.0,
+        0.97826
+      ]
+    },
+    {
+      "frame_id": 61,
+      "albedo": "img_0061_albedo.png",
+      "normal": "img_0061_normal.png",
+      "gains": [
+        1.02174,
+        1.0,
+        0.97826
+      ]
+    },
+    {
+      "frame_id": 71,
+      "albedo": "img_0071_albedo.png",
+      "normal": "img_0071_normal.png",
+      "gains": [
+        1.02174,
+        1.0,
+        0.97826
+      ]
+    }
+  ]
+}

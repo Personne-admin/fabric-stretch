@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Linux (or WSL) with bash >= 4.4 and GNU coreutils: the scripts use mapfile,
+# `readlink -f`, `sha256sum`, `find -printf` and empty arrays under `set -u`.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+	echo "fabsim-track: needs bash >= 4.4 (found $BASH_VERSION), on macOS install a newer bash and GNU coreutils" >&2
+	exit 2
+fi
+
+SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
+SERVER_DIR="$(dirname -- "$SELF")"
+REPO_DIR="$(dirname -- "$SERVER_DIR")"
+LIB_DIR="$SERVER_DIR/lib"
+
+# shellcheck source=lib/common.sh
+source "$LIB_DIR/common.sh"
+# shellcheck source=lib/target.sh
+source "$LIB_DIR/target.sh"
+# shellcheck source=lib/run.sh
+source "$LIB_DIR/run.sh"
+# shellcheck source=lib/setup.sh
+source "$LIB_DIR/setup.sh"
+
+usage() {
+	cat <<'TEXT'
+usage: fabsim-track [--env FILE] [--mode ssh|local|docker] <command> [options]
+
+commands:
+  setup               install the tracker environment on the target (bootstrap.sh)
+  status              check the target: GPU, driver, environment, checkpoint, adapter
+  dry-run  <run>      show what the adapter would do (local, no GPU, no torch)
+  run      <run>      upload the inputs and track one run on the target
+  fetch    <run>      download the results of one run and place tracks.json
+  validate <run>      check a result against the run (frames, points, reference error)
+  dataset  <dataset>  run + fetch + validate every <orientation>_loading/_release run
+  help [command]      this text, or details of one command
+
+global options:
+  --env FILE          use this config file instead of server/tracker.env
+  --mode MODE         override TRACKER_MODE for this call
+
+Setup and commands: docs/self_hosting_tracker.md
+Configuration: server/tracker.env.example
+TEXT
+}
+
+usage_command() {
+	case "$1" in
+	setup)
+		cat <<'TEXT'
+usage: fabsim-track setup [--force] [--skip-smoke] [--checkpoint-only]
+
+Idempotent. Uploads the adapter, then runs server/bootstrap.sh on the target:
+python venv, torch, the pinned CoWTracker checkout, the checkpoint (sha256
+verified), a GPU check and a smoke test. docker mode builds the image first.
+  --force            recreate the venv and download the checkpoint again
+  --skip-smoke       skip the smoke test
+  --checkpoint-only  only fetch the checkpoint (what docker mode uses)
+TEXT
+		;;
+	status)
+		cat <<'TEXT'
+usage: fabsim-track status [--deep]
+
+Checks the target and exits non-zero when something is wrong.
+  --deep   also re-hash the checkpoint (slow, ~4 GB)
+TEXT
+		;;
+	dry-run)
+		cat <<'TEXT'
+usage: fabsim-track dry-run <run> [--role R] [--grid-cols N] [--grid-rows N] [-- adapter args]
+
+Runs the adapter's own --dry-run on this machine (needs python3 with numpy and
+Pillow, see TRACKER_LOCAL_PYTHON): frames, dimensions, point grid, reference
+frame. Nothing is uploaded or written.
+TEXT
+		;;
+	run)
+		cat <<'TEXT'
+usage: fabsim-track run <run> [--role R] [--grid-cols N] [--grid-rows N]
+                       [--gpu I] [--run-id ID] [--force] [-- adapter args]
+
+Uploads the session files and the images of the role (only those), runs the
+tracker and keeps everything under a run id (default: UTC timestamp):
+  ssh:           $TRACKER_ROOT/outputs/<dataset>/<run>/<run id>/ on the host
+  local, docker: <run>/cowtracker-results/<run id>/
+An existing results directory is never reused without --force.
+Examples:
+  fabsim-track run fabric_002/warp_loading
+  fabsim-track run fabric_002/warp_loading -- --windowed --reference-frame 3
+TEXT
+		;;
+	fetch)
+		cat <<'TEXT'
+usage: fabsim-track fetch <run> --run-id ID [--no-place] [--refetch] [--force]
+
+Downloads the results to <run>/cowtracker-results/<run id>/ and copies
+tracks.json to <run>/tracks.json (what the viewer auto-discovers) unless
+--no-place. An existing tracks.json is left alone; with --force it is renamed
+tracks.prev-<time>.json first. An existing download is only replaced with
+--refetch (or --force). local and docker modes only do the placing.
+TEXT
+		;;
+	validate)
+		cat <<'TEXT'
+usage: fabsim-track validate <run> [--run-id ID | --tracks FILE] [--role R]
+                          [--grid-cols N --grid-rows N | --expect-points N | --any-points]
+
+Checks tracks.json (default: <run>/tracks.json) against the run: frames ==
+images of the role, identical points in every frame (cols x rows unless told
+otherwise), finite values, reference error below the limit recorded in the file
+(TRACKER_REFERENCE_ERROR_LIMIT, 2 px, as passed to the adapter by `run`).
+Custom points (--points, --grid-spacing) in TRACKER_EXTRA_ARGS are detected;
+if they were given after "--" use --any-points. Prints a JSON report; exit
+status 1 when invalid.
+TEXT
+		;;
+	dataset)
+		cat <<'TEXT'
+usage: fabsim-track dataset <dataset> [run ...] [--role R] [--grid-cols N]
+                         [--grid-rows N] [--gpu I] [--run-id ID] [--force]
+                         [--no-place] [-- adapter args]
+
+Runs, fetches and validates each run (default: every <orientation>_loading and
+_release directory with a frames.json) under one shared run id. A failing run
+does not stop the others. Runs whose results for that run id are already
+present and valid are skipped, so re-running with the same --run-id resumes
+(failed runs are retried under that id; a run id that was not used by an
+earlier `dataset` call is never reused without --force).
+Writes <dataset>/cowtracker-logs/<run id>-summary.json and exits non-zero if
+any run failed.
+TEXT
+		;;
+	*) usage ;;
+	esac
+}
+
+ENV_FILE_ARG=""
+MODE_ARG=""
+PASS_ARGS=()
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--env)
+		ENV_FILE_ARG="${2:?--env needs a file}"
+		PASS_ARGS+=(--env "$2")
+		shift 2
+		;;
+	--mode)
+		MODE_ARG="${2:?--mode needs a value}"
+		PASS_ARGS+=(--mode "$2")
+		shift 2
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	--) break ;;
+	-*) die "unknown global option: $1 (try: fabsim-track help)" ;;
+	*) break ;;
+	esac
+done
+
+COMMAND="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+trap cleanup_tmp EXIT
+
+case "$COMMAND" in
+help | -h | --help)
+	if [[ $# -gt 0 ]]; then usage_command "$1"; else usage; fi
+	exit 0
+	;;
+setup | status | run | fetch | dataset | dry-run | validate) ;;
+*)
+	usage >&2
+	die "unknown command: $COMMAND"
+	;;
+esac
+
+# The calling command's own -h/--help.
+for arg in "$@"; do
+	[[ $arg == -- ]] && break
+	if [[ $arg == -h || $arg == --help ]]; then
+		usage_command "$COMMAND"
+		exit 0
+	fi
+done
+
+load_config
+case "$COMMAND" in
+setup | status | run | fetch | dataset)
+	validate_config
+	init_target
+	;;
+esac
+
+case "$COMMAND" in
+setup) cmd_setup "$@" ;;
+status) cmd_status "$@" ;;
+dry-run) cmd_dry_run "$@" ;;
+run) cmd_run "$@" ;;
+fetch) cmd_fetch "$@" ;;
+validate) cmd_validate "$@" ;;
+dataset) cmd_dataset "$@" ;;
+esac

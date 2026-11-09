@@ -1,0 +1,471 @@
+{
+  "format": "fabsim-material-rgb",
+  "version": 3,
+  "material": "demo",
+  "orientation": "warp",
+  "atlas": {
+    "grid_cells": [
+      1,
+      1,
+      17,
+      7
+    ],
+    "reference_bounds_px": [
+      13.9,
+      13.9375,
+      177.1,
+      81.3125
+    ],
+    "dimensions_px": [
+      164,
+      68
+    ],
+    "origin": "Loading reference grid top-left",
+    "loading_reference_frame": 0,
+    "release_reference_frame": 71,
+    "tracker_grid": [
+      20,
+      16
+    ],
+    "active_grid_axis": "vertical",
+    "loading_to_release_homography": [
+      [
+        0.9881783508102399,
+        -0.0008844892415012668,
+        1.2405443229184796
+      ],
+      [
+        0.002407406736673544,
+        1.004313733228273,
+        -1.2736562129394957
+      ],
+      [
+        4.012834317981085e-06,
+        -4.238531497609855e-07,
+        1.0
+      ]
+    ],
+    "release_reference_error_p95_px": 8.72819515343624e-06
+  },
+  "lref_mm": null,
+  "lref_status": "unknown: physical reference length not measured",
+  "stretch_definition": "median tracked edge ratio along the pull axis; Loading states relative to the Loading reference frame, Release states relative to the same Loading reference (canonical atlas), so the Release branch ends at release_residual_stretch",
+  "release_residual_stretch": 1.003969285626955,
+  "color_space": "sRGB PNG; decode to linear RGB before interpolation",
+  "force": {
+    "unit": "N",
+    "tare": "offset_n = force at stretch 1 (intercept of a straight line fitted to the readings of the first tare_states Loading states; tare_states 1 = the raw reading at the Loading reference frame); Release readings are re-referenced to the Loading zero_counts first (add (loading zero - own zero) * N per count); force_n = reading - offset_n",
+    "tare_states": 1,
+    "offset_n": -4.3,
+    "zero_counts": {
+      "loading": -628,
+      "release": -628
+    },
+    "clamp_width_m": 0.202,
+    "quality": {
+      "loading": {
+        "states": 8,
+        "span_n": 2.04,
+        "noise_sigma_n": 1.148,
+        "snr": 1.78,
+        "spearman": 0.667,
+        "usable": false
+      },
+      "release": {
+        "states": 8,
+        "span_n": 3.016,
+        "noise_sigma_n": 1.199,
+        "snr": 2.52,
+        "spearman": 0.69,
+        "usable": false
+      }
+    }
+  },
+  "ps": {
+    "albedo_scale": 1.0666923671960828,
+    "albedo_scale_basis": "smallest value that at most 0.1 % of the brightest-channel albedo pixels exceed, over the atlas (and the tile, if tiled) of all 16 states (both branches), plus 0.1 % headroom; shared by all states so albedo stays comparable, and at most 0.1 % of the pixels of any state clip at 65535",
+    "albedo_encoding": "linear RGB, 16-bit PNG; albedo = v/65535*albedo_scale",
+    "exposure_gain": 1.9464089344703537,
+    "exposure_basis": "albedo is multiplied by exposure_gain = mean(diffuse luma) / mean(albedo * max(n_z, 0)) measured on the Loading reference frame, so a relight straight on with intensity 1 and ambient 0 is as bright as the diffuse photograph; the captured LED i is reproduced with intensity gains[i] / exposure_gain",
+    "normal_encoding": "16-bit RGB PNG; n = 2*v/65535-1; x=atlas column/right, y=atlas row UP, z=toward camera",
+    "normal_correction": "per state, a plane fitted to the x and y components of the normal over the whole atlas is removed (near-field LEDs tilt the normals of a flat sheet linearly) and the normals renormalised; normal_tilt_deg of a state is the tilt of its mean normal before the correction",
+    "light": {
+      "azimuths_deg": [
+        91.91,
+        331.45,
+        208.24
+      ],
+      "elevation_deg": 45.0,
+      "source": "session.json:led_config"
+    },
+    "gains": [
+      1.0217391286390378,
+      1.0,
+      0.9782608713609622
+    ],
+    "gains_mode": "per-state",
+    "quality": {
+      "albedo_diffuse_correlation": 0.916,
+      "normal_tilt_deg": {
+        "mean": 1.4,
+        "max": 2.42
+      },
+      "warnings": []
+    },
+    "frame": "atlas axes = camera image axes: x=atlas column/right, y=atlas row UP (i.e. -row), z=toward camera"
+  },
+  "branches": {
+    "loading": [
+      {
+        "frame_id": 0,
+        "sequence_index": 0,
+        "stretch_ratio": 1.0,
+        "force_n": 0.0,
+        "force_raw_n": -4.3,
+        "travel_mm": 0.0,
+        "texture": "loading/frame_0000.png",
+        "source_image": "img_0000_diffuse.png",
+        "albedo": "loading/albedo_0000.png",
+        "normal": "loading/normal_0000.png",
+        "ps_gains": [
+          1.02174,
+          1.0,
+          0.97826
+        ],
+        "normal_tilt_deg": 2.39
+      },
+      {
+        "frame_id": 10,
+        "sequence_index": 1,
+        "stretch_ratio": 1.0363981565094393,
+        "force_n": 1.1124999999999998,
+        "force_raw_n": -3.1875,
+        "travel_mm": 12.244898,
+        "texture": "loading/frame_0010.png",
+        "source_image": "img_0010_diffuse.png",
+        "albedo": "loading/albedo_0010.png",
+        "normal": "loading/normal_0010.png",
+        "ps_gains": [
+          1.02174,
+          1.0,
+          0.97826
+        ],
+        "normal_tilt_deg": 1.55
+      },
+      {
+        "frame_id": 20,
+        "sequence_index": 2,
+        "stretch_ratio": 1.0775538195060217,
+        "force_n": 2.7624999999999997,
+        "force_raw_n": -1.5375,
+        "travel_mm": 24.489796,
+        "texture": "loading/frame_0020.png",
+        "source_image": "img_0020_diffuse.png",
+        "albedo": "loading/albedo_0020.png",
+        "normal": "loading/normal_0020.png",
+        "ps_gains": [
+          1.03676,
+          0.99265,
+          0.97059
+        ],
+        "normal_tilt_deg": 0.43
+      },
+      {
+        "frame_id": 30,
+        "sequence_index": 3,
+        "stretch_ratio": 1.1191253502611405,
+        "force_n": 3.0749999999999997,
+        "force_raw_n": -1.225,
+        "travel_mm": 36.734694,
+        "texture": "loading/frame_0030.png",
+        "source_image": "img_0030_diffuse.png",
+        "albedo": "loading/albedo_0030.png",
+        "normal": "loading/normal_0030.png",
+        "ps_gains": [
+          1.02985,
+          1.00746,
+          0.96269
+        ],
+        "normal_tilt_deg": 0.95
+      },
+      {
+        "frame_id": 41,
+        "sequence_index": 4,
+        "stretch_ratio": 1.1648282241458683,
+        "force_n": 0.8499999999999996,
+        "force_raw_n": -3.45,
+        "travel_mm": 50.204082,
+        "texture": "loading/frame_0041.png",
+        "source_image": "img_0041_diffuse.png",
+        "albedo": "loading/albedo_0041.png",
+        "normal": "loading/normal_0041.png",
+        "ps_gains": [
+          1.03053,
+          1.00763,
+          0.96183
+        ],
+        "normal_tilt_deg": 1.24
+      },
+      {
+        "frame_id": 51,
+        "sequence_index": 5,
+        "stretch_ratio": 1.207937941191629,
+        "force_n": 1.4625,
+        "force_raw_n": -2.8375,
+        "travel_mm": 62.44898,
+        "texture": "loading/frame_0051.png",
+        "source_image": "img_0051_diffuse.png",
+        "albedo": "loading/albedo_0051.png",
+        "normal": "loading/normal_0051.png",
+        "ps_gains": [
+          1.02326,
+          1.0,
+          0.97674
+        ],
+        "normal_tilt_deg": 1.1
+      },
+      {
+        "frame_id": 61,
+        "sequence_index": 6,
+        "stretch_ratio": 1.25075956838286,
+        "force_n": 2.8625,
+        "force_raw_n": -1.4375,
+        "travel_mm": 74.693878,
+        "texture": "loading/frame_0061.png",
+        "source_image": "img_0061_diffuse.png",
+        "albedo": "loading/albedo_0061.png",
+        "normal": "loading/normal_0061.png",
+        "ps_gains": [
+          1.00781,
+          1.00781,
+          0.98438
+        ],
+        "normal_tilt_deg": 1.69
+      },
+      {
+        "frame_id": 71,
+        "sequence_index": 7,
+        "stretch_ratio": 1.2920131256095302,
+        "force_n": 3.2624999999999997,
+        "force_raw_n": -1.0375,
+        "travel_mm": 86.938776,
+        "texture": "loading/frame_0071.png",
+        "source_image": "img_0071_diffuse.png",
+        "albedo": "loading/albedo_0071.png",
+        "normal": "loading/normal_0071.png",
+        "ps_gains": [
+          1.00781,
+          1.00781,
+          0.98438
+        ],
+        "normal_tilt_deg": 1.97
+      }
+    ],
+    "release": [
+      {
+        "frame_id": 0,
+        "sequence_index": 0,
+        "stretch_ratio": 1.2948600010403604,
+        "force_n": 3.0374999999999996,
+        "force_raw_n": -1.2625,
+        "travel_mm": 0.0,
+        "texture": "release/frame_0000.png",
+        "source_image": "img_0000_diffuse.png",
+        "albedo": "release/albedo_0000.png",
+        "normal": "release/normal_0000.png",
+        "ps_gains": [
+          1.00781,
+          1.00781,
+          0.98438
+        ],
+        "normal_tilt_deg": 2.36
+      },
+      {
+        "frame_id": 10,
+        "sequence_index": 1,
+        "stretch_ratio": 1.250475340908258,
+        "force_n": 2.6125,
+        "force_raw_n": -1.6875,
+        "travel_mm": 12.244898,
+        "texture": "release/frame_0010.png",
+        "source_image": "img_0010_diffuse.png",
+        "albedo": "release/albedo_0010.png",
+        "normal": "release/normal_0010.png",
+        "ps_gains": [
+          1.00781,
+          1.00781,
+          0.98438
+        ],
+        "normal_tilt_deg": 1.46
+      },
+      {
+        "frame_id": 20,
+        "sequence_index": 2,
+        "stretch_ratio": 1.2039778611499483,
+        "force_n": 2.8125,
+        "force_raw_n": -1.4875,
+        "travel_mm": 24.489796,
+        "texture": "release/frame_0020.png",
+        "source_image": "img_0020_diffuse.png",
+        "albedo": "release/albedo_0020.png",
+        "normal": "release/normal_0020.png",
+        "ps_gains": [
+          1.01538,
+          0.99231,
+          0.99231
+        ],
+        "normal_tilt_deg": 1.27
+      },
+      {
+        "frame_id": 30,
+        "sequence_index": 3,
+        "stretch_ratio": 1.1578253254210413,
+        "force_n": 1.6875,
+        "force_raw_n": -2.6125,
+        "travel_mm": 36.734694,
+        "texture": "release/frame_0030.png",
+        "source_image": "img_0030_diffuse.png",
+        "albedo": "release/albedo_0030.png",
+        "normal": "release/normal_0030.png",
+        "ps_gains": [
+          1.01504,
+          0.99248,
+          0.99248
+        ],
+        "normal_tilt_deg": 0.84
+      },
+      {
+        "frame_id": 41,
+        "sequence_index": 4,
+        "stretch_ratio": 1.1086003455187563,
+        "force_n": 4.4624999999999995,
+        "force_raw_n": 0.1625,
+        "travel_mm": 50.204082,
+        "texture": "release/frame_0041.png",
+        "source_image": "img_0041_diffuse.png",
+        "albedo": "release/albedo_0041.png",
+        "normal": "release/normal_0041.png",
+        "ps_gains": [
+          1.02222,
+          1.0,
+          0.97778
+        ],
+        "normal_tilt_deg": 0.34
+      },
+      {
+        "frame_id": 51,
+        "sequence_index": 5,
+        "stretch_ratio": 1.0698568004877709,
+        "force_n": 2.4875,
+        "force_raw_n": -1.8125,
+        "travel_mm": 62.44898,
+        "texture": "release/frame_0051.png",
+        "source_image": "img_0051_diffuse.png",
+        "albedo": "release/albedo_0051.png",
+        "normal": "release/normal_0051.png",
+        "ps_gains": [
+          1.02174,
+          1.0,
+          0.97826
+        ],
+        "normal_tilt_deg": 1.0
+      },
+      {
+        "frame_id": 61,
+        "sequence_index": 6,
+        "stretch_ratio": 1.0306041622669602,
+        "force_n": 0.14999999999999947,
+        "force_raw_n": -4.15,
+        "travel_mm": 74.693878,
+        "texture": "release/frame_0061.png",
+        "source_image": "img_0061_diffuse.png",
+        "albedo": "release/albedo_0061.png",
+        "normal": "release/normal_0061.png",
+        "ps_gains": [
+          1.02174,
+          1.0,
+          0.97826
+        ],
+        "normal_tilt_deg": 1.43
+      },
+      {
+        "frame_id": 71,
+        "sequence_index": 7,
+        "stretch_ratio": 1.003969285626955,
+        "force_n": 0.0625,
+        "force_raw_n": -4.2375,
+        "travel_mm": 86.938776,
+        "texture": "release/frame_0071.png",
+        "source_image": "img_0071_diffuse.png",
+        "albedo": "release/albedo_0071.png",
+        "normal": "release/normal_0071.png",
+        "ps_gains": [
+          1.02174,
+          1.0,
+          0.97826
+        ],
+        "normal_tilt_deg": 2.42
+      }
+    ]
+  },
+  "tiling": {
+    "enabled": true,
+    "algorithm": "findTile (SightTex 2.3, 2022) Python port: fabsim.texture_tiling",
+    "matlab_signature": "findTile(images, window_size, shift, interp_dist, area, guidance_images)",
+    "window_size": [
+      8,
+      16
+    ],
+    "shift": 3,
+    "interp_dist": 1,
+    "guidance_images_used": false,
+    "guidance_state_indices": null,
+    "area_input_0based": null,
+    "states_in_joint_search": 16,
+    "source_atlas_size_px": [
+      164,
+      68
+    ],
+    "tile_size_px": [
+      152,
+      45
+    ],
+    "area_matlab_1based": [
+      10,
+      6,
+      46,
+      153
+    ],
+    "origin_px": [
+      5,
+      9
+    ],
+    "period_px": [
+      152,
+      45
+    ],
+    "origin_uv": [
+      0.03048780487804878,
+      0.1323529411764706
+    ],
+    "period_uv": [
+      0.926829268292683,
+      0.6617647058823529
+    ],
+    "search_seconds": 0.02,
+    "joint_search": false,
+    "quality": {
+      "tile_shape": [
+        45,
+        152,
+        3
+      ],
+      "states": 16,
+      "wrap_jump_v": 13.496984481811523,
+      "wrap_jump_h": 11.688888549804688,
+      "neighbour_diff_v": 16.978984832763672,
+      "neighbour_diff_h": 14.485816955566406
+    },
+    "total_seconds": 0.03
+  }
+}

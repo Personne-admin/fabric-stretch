@@ -1,0 +1,194 @@
+{
+  "project": "demo",
+  "format": "fabsim-material-rgb",
+  "version": 3,
+  "orientations": {
+    "warp": {
+      "status": "built",
+      "atlas": {
+        "grid_cells": [
+          1,
+          1,
+          17,
+          7
+        ],
+        "reference_bounds_px": [
+          13.9,
+          13.9375,
+          177.1,
+          81.3125
+        ],
+        "dimensions_px": [
+          164,
+          68
+        ],
+        "origin": "Loading reference grid top-left",
+        "loading_reference_frame": 0,
+        "release_reference_frame": 71,
+        "tracker_grid": [
+          20,
+          16
+        ],
+        "active_grid_axis": "vertical",
+        "loading_to_release_homography": [
+          [
+            0.9881783508102399,
+            -0.0008844892415012668,
+            1.2405443229184796
+          ],
+          [
+            0.002407406736673544,
+            1.004313733228273,
+            -1.2736562129394957
+          ],
+          [
+            4.012834317981085e-06,
+            -4.238531497609855e-07,
+            1.0
+          ]
+        ],
+        "release_reference_error_p95_px": 8.72819515343624e-06
+      },
+      "skipped_states": [],
+      "states": {
+        "loading": 8,
+        "release": 8
+      },
+      "stretch_range": {
+        "loading": [
+          1.0,
+          1.2920131256095302
+        ],
+        "release": [
+          1.003969285626955,
+          1.2948600010403604
+        ]
+      },
+      "release_residual_stretch": 1.003969285626955,
+      "force": {
+        "offset_n": -4.3,
+        "tare_states": 1,
+        "quality": {
+          "loading": {
+            "states": 8,
+            "span_n": 2.04,
+            "noise_sigma_n": 1.148,
+            "snr": 1.78,
+            "spearman": 0.667,
+            "usable": false
+          },
+          "release": {
+            "states": 8,
+            "span_n": 3.016,
+            "noise_sigma_n": 1.199,
+            "snr": 2.52,
+            "spearman": 0.69,
+            "usable": false
+          }
+        },
+        "zero_counts": {
+          "loading": -628,
+          "release": -628
+        },
+        "zero_counts_differ": false,
+        "range_n": {
+          "loading": [
+            0.0,
+            3.2624999999999997
+          ],
+          "release": [
+            0.0625,
+            4.4624999999999995
+          ]
+        }
+      },
+      "tiling": {
+        "enabled": true,
+        "algorithm": "findTile (SightTex 2.3, 2022) Python port: fabsim.texture_tiling",
+        "matlab_signature": "findTile(images, window_size, shift, interp_dist, area, guidance_images)",
+        "window_size": [
+          8,
+          16
+        ],
+        "shift": 3,
+        "interp_dist": 1,
+        "guidance_images_used": false,
+        "guidance_state_indices": null,
+        "area_input_0based": null,
+        "states_in_joint_search": 16,
+        "source_atlas_size_px": [
+          164,
+          68
+        ],
+        "tile_size_px": [
+          152,
+          45
+        ],
+        "area_matlab_1based": [
+          10,
+          6,
+          46,
+          153
+        ],
+        "origin_px": [
+          5,
+          9
+        ],
+        "period_px": [
+          152,
+          45
+        ],
+        "origin_uv": [
+          0.03048780487804878,
+          0.1323529411764706
+        ],
+        "period_uv": [
+          0.926829268292683,
+          0.6617647058823529
+        ],
+        "search_seconds": 0.02,
+        "joint_search": false,
+        "quality": {
+          "tile_shape": [
+            45,
+            152,
+            3
+          ],
+          "states": 16,
+          "wrap_jump_v": 13.496984481811523,
+          "wrap_jump_h": 11.688888549804688,
+          "neighbour_diff_v": 16.978984832763672,
+          "neighbour_diff_h": 14.485816955566406
+        },
+        "total_seconds": 0.03
+      },
+      "ps": {
+        "albedo_scale": 1.0666923671960828,
+        "exposure_gain": 1.9464089344703537,
+        "gains": [
+          1.0217391286390378,
+          1.0,
+          0.9782608713609622
+        ],
+        "gains_mode": "per-state",
+        "quality": {
+          "albedo_diffuse_correlation": 0.916,
+          "normal_tilt_deg": {
+            "mean": 1.4,
+            "max": 2.42
+          },
+          "warnings": []
+        },
+        "clipped_fraction_max": {
+          "untiled": 0.0008070301291248207,
+          "tiled": 0.0008771929824561404
+        }
+      },
+      "warnings": [
+        "loading force is not usable: span 2.04 N against noise 1.148 N (ratio 1.78, rank correlation with stretch 0.667); do not drive a view or a fit with it",
+        "release force is not usable: span 3.016 N against noise 1.199 N (ratio 2.52, rank correlation with stretch 0.69); do not drive a view or a fit with it"
+      ],
+      "seconds": 0.6
+    }
+  }
+}

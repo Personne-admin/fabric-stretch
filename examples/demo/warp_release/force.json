@@ -1,0 +1,100 @@
+{
+ "forces": [
+  {
+   "index": 0,
+   "label": "0",
+   "timestamp": "2026-10-20T22:12:32.800393",
+   "raw": "TENSION force_n=-1.262500 raw_counts=-527 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -1.2625,
+   "force_n": -1.2625,
+   "raw_counts": -527,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 10,
+   "label": "10",
+   "timestamp": "2026-10-20T22:14:46.123944",
+   "raw": "TENSION force_n=-1.687500 raw_counts=-493 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -1.6875,
+   "force_n": -1.6875,
+   "raw_counts": -493,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 20,
+   "label": "20",
+   "timestamp": "2026-10-20T22:16:43.868052",
+   "raw": "TENSION force_n=-1.487500 raw_counts=-509 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -1.4875,
+   "force_n": -1.4875,
+   "raw_counts": -509,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 30,
+   "label": "30",
+   "timestamp": "2026-10-20T22:18:39.150715",
+   "raw": "TENSION force_n=-2.612500 raw_counts=-419 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -2.6125,
+   "force_n": -2.6125,
+   "raw_counts": -419,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 41,
+   "label": "41",
+   "timestamp": "2026-10-20T22:20:45.033357",
+   "raw": "TENSION force_n=0.162500 raw_counts=-641 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": 0.1625,
+   "force_n": 0.1625,
+   "raw_counts": -641,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 51,
+   "label": "51",
+   "timestamp": "2026-10-20T22:22:41.899561",
+   "raw": "TENSION force_n=-1.812500 raw_counts=-483 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -1.8125,
+   "force_n": -1.8125,
+   "raw_counts": -483,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 61,
+   "label": "61",
+   "timestamp": "2026-10-20T22:24:54.600447",
+   "raw": "TENSION force_n=-4.150000 raw_counts=-296 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -4.15,
+   "force_n": -4.15,
+   "raw_counts": -296,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  },
+  {
+   "index": 71,
+   "label": "71",
+   "timestamp": "2026-10-20T22:27:03.612136",
+   "raw": "TENSION force_n=-4.237500 raw_counts=-289 zero_counts=-628 calibration_n_per_count=0.01250000",
+   "value": -4.2375,
+   "force_n": -4.2375,
+   "raw_counts": -289,
+   "zero_counts": -628,
+   "calibration_n_per_count": 0.0125,
+   "status": "ok"
+  }
+ ]
+}

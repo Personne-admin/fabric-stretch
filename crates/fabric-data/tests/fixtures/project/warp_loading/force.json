@@ -1,0 +1,28 @@
+{
+  "forces": [
+    {
+      "index": 0,
+      "label": "0",
+      "timestamp": "2026-01-01T10:00:00.000000",
+      "raw": "TENSION force_n=0.500000 raw_counts=40 zero_counts=-600 calibration_n_per_count=0.01250000",
+      "value": 0.5,
+      "force_n": 0.5,
+      "raw_counts": 40,
+      "zero_counts": -600,
+      "calibration_n_per_count": 0.0125,
+      "status": "ok"
+    },
+    {
+      "index": 1,
+      "label": "1",
+      "timestamp": "2026-01-01T10:00:01.000000",
+      "raw": "TENSION force_n=1.500000 raw_counts=120 zero_counts=-600 calibration_n_per_count=0.01250000",
+      "value": 1.5,
+      "force_n": 1.5,
+      "raw_counts": 120,
+      "zero_counts": -600,
+      "calibration_n_per_count": 0.0125,
+      "status": "ok"
+    }
+  ]
+}

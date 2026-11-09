@@ -1,0 +1,69 @@
+[
+  {
+    "name": "Static 1-shot",
+    "count": 1,
+    "step_size": 0,
+    "led_mask": 255,
+    "led_power": 200,
+    "settle_ms": 50,
+    "cam_exposure_ms": 5.0,
+    "speed_mult": 1,
+    "relax_enabled": false,
+    "relax_indices": [],
+    "relax_duration_ms": 5000
+  },
+  {
+    "count": 36,
+    "step_size": 20000,
+    "led_mask": 85,
+    "led_power": 128,
+    "settle_ms": 50,
+    "cam_exposure_ms": 5.0,
+    "speed_mult": 1,
+    "relax_enabled": true,
+    "relax_indices": [
+      20
+    ],
+    "relax_duration_ms": 5000,
+    "name": "procedure01_36images"
+  },
+  {
+    "count": 80,
+    "step_size": 10000,
+    "led_mask": 85,
+    "led_power": 128,
+    "settle_ms": 50,
+    "cam_exposure_ms": 5.0,
+    "sample_id": "fabric_001",
+    "direction": "warp",
+    "clamp_width_m": 0.2,
+    "max_stretch_mm": 150.0,
+    "max_force_n": 90.0,
+    "speed_mult": 1,
+    "relax_enabled": false,
+    "relax_indices": [
+      20
+    ],
+    "relax_duration_ms": 5000,
+    "name": "dense_80_step10k"
+  },
+  {
+    "count": 72,
+    "step_size": 5000,
+    "motion_mode": "loading",
+    "led_mask": 85,
+    "led_power": 128,
+    "settle_ms": 50,
+    "cam_exposure_ms": 15.0,
+    "sample_id": "fabric_002",
+    "direction": "weft",
+    "clamp_width_m": 0.2,
+    "max_stretch_mm": 0.0,
+    "max_force_n": 80.0,
+    "speed_mult": 1,
+    "relax_enabled": false,
+    "relax_indices": [],
+    "relax_duration_ms": 5000,
+    "name": "procedure03_72images"
+  }
+]

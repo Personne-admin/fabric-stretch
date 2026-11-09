@@ -1,0 +1,19 @@
+{
+  "pol_a_bits": [
+    1,
+    3,
+    5
+  ],
+  "pol_b_bits": [
+    2,
+    4,
+    6
+  ],
+  "diffuse_mask": 1,
+  "light_elevation_deg": 45.0,
+  "light_azimuths_deg": [
+    91.27,
+    334.26,
+    211.16
+  ]
+}

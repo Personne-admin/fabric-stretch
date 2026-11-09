@@ -1,0 +1,8 @@
+{
+  "_note": "ILLUSTRATIVE example only, these coordinates are made up for demonstrating the point file format and were NOT measured on any real image.",
+  "points": [
+    { "id": "p0", "x": 640.0, "y": 512.0 },
+    { "id": "p1", "x": 320.0, "y": 256.0 },
+    { "id": "p2", "x": 960.0, "y": 768.0 }
+  ]
+}

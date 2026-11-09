@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+while [[ $# -gt 0 && $1 != -- ]]; do shift; done
+shift   # --
+shift   # host
+exec bash -c "$*"

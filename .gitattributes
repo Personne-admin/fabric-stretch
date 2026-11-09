@@ -1,0 +1,18 @@
+* text=auto
+*.sh text eol=lf
+server/fabsim-track text eol=lf
+server/Dockerfile text eol=lf
+*.ino text eol=lf
+*.hh text eol=lf
+*.py text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+
+*.png binary
+*.jpg binary
+*.npz binary
+
+Cargo.lock linguist-generated
+examples/demo/** linguist-generated
+docs/images/** linguist-documentation
