@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fabsim"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Measurement pipeline for stretched-fabric appearance"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -30,6 +30,9 @@ Repository = "https://github.com/personne-admin/fabric-stretch"
 
 [project.scripts]
 fabsim = "fabsim.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "fabsim.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

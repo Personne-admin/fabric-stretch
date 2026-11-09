@@ -10,7 +10,7 @@ try:
     from pyueye import ueye
 
     UEYE_AVAILABLE = True
-except ImportError:  # vendor SDK / wheel not installed
+except (ImportError, OSError):  # vendor SDK / wheel not installed
     ueye = None
     UEYE_AVAILABLE = False
 

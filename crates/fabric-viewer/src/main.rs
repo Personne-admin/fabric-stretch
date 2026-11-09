@@ -1,8 +1,5 @@
 //! Fabric Stretch Viewer executable.
 
-// No console window for the release build on Windows.
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
-
 use eframe::egui_wgpu::{wgpu, WgpuConfiguration, WgpuSetup};
 use std::sync::Arc;
 
@@ -38,10 +35,16 @@ fn wgpu_options() -> WgpuConfiguration {
 fn main() -> eframe::Result {
     env_logger::init();
 
-    let paths: Vec<std::path::PathBuf> = std::env::args()
-        .skip(1)
-        .map(std::path::PathBuf::from)
-        .collect();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("Fabric Stretch Viewer {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("usage: fabric-viewer [project ...]\n       fabric-viewer --version");
+        return Ok(());
+    }
+    let paths: Vec<std::path::PathBuf> = args.into_iter().map(std::path::PathBuf::from).collect();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

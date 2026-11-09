@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print the config and log directories and exit",
     )
+    parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--verbose", action="store_true", help="log DEBUG messages to the console")
 
     return parser
@@ -58,7 +59,10 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         return 1
-    App().mainloop()
+    app = App()
+    if args.smoke_test:
+        app.after(200, app.destroy)
+    app.mainloop()
 
     return 0
 
