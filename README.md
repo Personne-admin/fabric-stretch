@@ -42,6 +42,7 @@ Record with `fabsim rig`, [track the points](docs/self_hosting_tracker.md), then
 fabsim validate <project>
 fabsim ps <project>           # optional; writes per-run maps
 fabsim package <project>
+fabsim validate-package <project>
 cargo run --release -p fabric-viewer -- <project>
 ```
 

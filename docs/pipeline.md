@@ -138,6 +138,16 @@ untiled variant appears in the viewer.
 Check each orientation's `status`, `reason` and `warnings` in
 [`build_report.json`](formats.md#build_reportjson). Warnings also appear on the console.
 
+### Validate a package
+
+```sh
+fabsim validate-package <project>
+```
+
+Also accepts a package set, an orientation folder or `package.json`. Checks manifest fields,
+paths (including symlink escapes), PNG decoding, sizes, bit depths and complete PS layers.
+Exit status is 1 for invalid or missing packages, 0 otherwise. v2 packages give a warning.
+
 ### Damaged images
 
 Validation checks file existence, not image decoding. Packaging handles damaged PS images as follows:

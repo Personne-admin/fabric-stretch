@@ -23,6 +23,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
         "fit a colour-calibration bundle from chart patches",
     ),
     "validate": ("fabsim.validate", "sanity-check the run folders of a project"),
+    "validate-package": ("fabsim.validate_package", "check material packages and their images"),
     "rig": ("fabsim.rig.app", "acquisition application (GUI)"),
     "stereo": ("fabsim.rig.stereo", "photometric-stereo GUI"),
     "ps-verify": ("fabsim.rig.ps_verify", "photometric-stereo verification report"),

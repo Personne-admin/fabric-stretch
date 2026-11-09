@@ -373,6 +373,9 @@ The viewer reads a v2 package like this:
 
 ## What the viewer requires
 
+Use [`fabsim validate-package`](pipeline.md#validate-a-package) to check packages without
+opening the viewer. It also decodes images and checks their bit depths; the viewer checks headers.
+
 `MaterialPackage::load` accepts a `package.json` when:
 
 * `format == "fabsim-material-rgb"` and `version` is 2 or 3 (anything else gives a specific message);

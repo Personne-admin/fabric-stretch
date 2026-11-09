@@ -13,7 +13,6 @@
 
 ## Pipeline
 
-- Add package validation without the viewer.
 - Check [fallback LED geometry](docs/photometric_stereo.md#light-configuration) against older captures.
 - Replace [normal-plane correction](docs/photometric_stereo.md#normal-plane-removal-package-only)
   with a near-field light model.
