@@ -85,6 +85,8 @@ class AutomaticDispatcher:
         self._keep_raw = keep_raw
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
+        self._motion_lock = threading.Lock()
+        self._stop_requested = False
         self._abort_reason: str | None = None
         self._role_brightness: dict[str, float] = {}
         self._limit_armed = False
@@ -103,6 +105,13 @@ class AutomaticDispatcher:
         if reason and self._abort_reason is None:
             self._abort_reason = reason
         self._cancel.set()
+        with self._motion_lock:
+            if not self._stop_requested and self.ctrl.connected:
+                try:
+                    self.ctrl.stop()
+                    self._stop_requested = True
+                except Exception as exc:
+                    self._log(f"WARNING: could not send motor stop: {exc}")
 
     def start(self) -> None:
         if self.running:
@@ -123,6 +132,7 @@ class AutomaticDispatcher:
         if not self.ctrl.connected:
             raise RuntimeError("The controller is not connected.")
         self._cancel.clear()
+        self._stop_requested = False
         self._abort_reason = None
         actual_ms = self.cam.set_exposure(s.cam_exposure_ms)
         if abs(actual_ms - s.cam_exposure_ms) > EXPOSURE_TOLERANCE * s.cam_exposure_ms:
@@ -201,6 +211,8 @@ class AutomaticDispatcher:
         self.ctrl.clear_limit_trip()
         if not self.ctrl.connected:
             return
+        if self._stop_requested and not self.ctrl.wait_stopped(1.0):
+            self._log("WARNING: motor stop not acknowledged; check the controller and use the panic button")
         if self._limit_armed:
             with contextlib.suppress(Exception):
                 self.ctrl.set_force_limit(0)
@@ -253,14 +265,20 @@ class AutomaticDispatcher:
     def _arm_force_limit(self, signed_steps: int) -> None:
         s = self.settings
         release = s.release_steps if s.step_size != 0 else 0
-        self.ctrl.set_force_limit(s.max_force_n, release, release_dir_positive=signed_steps < 0)
-        self._limit_armed = True
+        with self._motion_lock:
+            if self._cancel.is_set():
+                return
+            self.ctrl.set_force_limit(s.max_force_n, release, release_dir_positive=signed_steps < 0)
+            self._limit_armed = True
         if not self.ctrl.wait_limit_armed(LIMIT_ARM_TIMEOUT_S):
             raise RunAbort("force_limit_not_armed (no LIMIT_ARMED reply from the controller)")
 
     def _jog_and_wait(self, signed_steps: int) -> bool:
         s = self.settings
-        self.ctrl.jog(signed_steps)
+        with self._motion_lock:
+            if self._cancel.is_set():
+                return False
+            self.ctrl.jog(signed_steps)
         timeout = move_duration_s(signed_steps, s.speed_mult) * MOVE_TIMEOUT_FACTOR + MOVE_TIMEOUT_SLACK_S
         deadline = time.monotonic() + timeout
         while not self.ctrl.wait_move_done(0.05):
@@ -268,9 +286,19 @@ class AutomaticDispatcher:
                 return False
             if self.ctrl.limit_tripped.is_set():
                 return True  # the firmware stops without MOVE_DONE; the caller reports the trip
+            if self.ctrl.move_aborted.is_set():
+                reason = self.ctrl.last_move_abort.get("reason", "unknown")
+                if reason != "force_limit":
+                    raise RunAbort(f"move_aborted ({reason})")
             if time.monotonic() > deadline:
                 raise RunAbort(f"move_timeout (no MOVE_DONE within {timeout:.1f} s)")
 
+        if self._cancel.is_set():
+            return False
+        if self.ctrl.move_aborted.is_set():
+            reason = self.ctrl.last_move_abort.get("reason", "unknown")
+            if reason != "force_limit":
+                raise RunAbort(f"move_aborted ({reason})")
         return True
 
     def _check_firmware_trip(self) -> None:

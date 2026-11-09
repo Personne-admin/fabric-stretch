@@ -21,6 +21,7 @@ class FakePort:
         answer_moves: bool = True,
         answer_limit: bool = True,
         firmware_trips: bool = True,
+        answer_stop: bool = True,
     ):
         self.name = name
         self.is_open = True
@@ -30,6 +31,9 @@ class FakePort:
         self.answer_moves = answer_moves
         self.answer_limit = answer_limit
         self.firmware_trips = firmware_trips
+        self.answer_stop = answer_stop
+        self.moving = False
+        self.remaining = 0
         self.position = 0
         self.led_mask = 0
         self.power = 0
@@ -84,6 +88,8 @@ class FakePort:
         head, rest = cmd[0], cmd[1:]
         if head in "+-":
             steps = int(rest or 0)
+            self.moving = bool(steps and not self.answer_moves)
+            self.remaining = steps if self.moving else 0
             self.position += steps if head == "+" else -steps
             replies = [f"jog: {head}{steps}"]
             if self.firmware_trips and self.limit_n > 0 and abs(self.force_n()) >= self.limit_n:
@@ -92,6 +98,15 @@ class FakePort:
                 replies.append("MOVE_DONE")
 
             return replies
+        if head == "S":
+            if not self.answer_stop:
+                return ["?S"]
+            remaining = self.remaining
+            replies = [f"MOVE_ABORTED reason=host_stop remaining={remaining}"] if self.moving else []
+            self.moving = False
+            self.remaining = 0
+            self.limit_n = 0.0
+            return replies + [f"STOPPED remaining={remaining}"]
         if head == "L":
             self.led_mask = int(rest or 0)
             if self.led_mask == 0:

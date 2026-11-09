@@ -429,3 +429,65 @@ def test_colour_correction_stamp_and_raw_copies(rig, tmp_path):
         assert not (other.run_dir / "images_raw").exists()
     finally:
         other.ctrl.disconnect()
+
+
+def test_cancel_stops_a_move_without_recording_the_unfinished_state(tmp_path):
+    import threading
+
+    r = Rig(tmp_path, answer_moves=False)
+    d = r.dispatcher(sequential())
+    jogged = threading.Event()
+    original = r.ctrl.jog
+
+    def jog(steps):
+        original(steps)
+        jogged.set()
+
+    r.ctrl.jog = jog
+    try:
+        d.start()
+        assert jogged.wait(5)
+        d.cancel("user_stop")
+        d.join(5)
+        assert not d.running
+        assert r.done == [("aborted", "user_stop")]
+        assert r.read("session.json")["frames_written"] == 1
+        assert "S" in r.port.log and not r.port.moving
+        after_stop = r.port.log[r.port.log.index("S") + 1 :]
+        assert not any(cmd.startswith(("+", "-")) for cmd in after_stop)
+    finally:
+        d.cancel()
+        d.join(5)
+        r.ctrl.disconnect()
+
+
+def test_panic_notification_aborts_without_waiting_for_move_timeout(tmp_path):
+    r = Rig(tmp_path, answer_moves=False)
+    original = r.ctrl.jog
+
+    def jog(steps):
+        original(steps)
+        r.ctrl.feed(b"MOVE_ABORTED reason=panic remaining=50\n")
+
+    r.ctrl.jog = jog
+    try:
+        d = r.dispatcher(sequential())
+        d.prepare()
+        d.run()
+        assert r.done == [("aborted", "move_aborted (panic)")]
+        assert r.read("session.json")["frames_written"] == 1
+        assert "S" in r.port.log
+    finally:
+        r.ctrl.disconnect()
+
+
+def test_unacknowledged_stop_is_reported(tmp_path):
+    r = Rig(tmp_path, answer_stop=False)
+    try:
+        d = r.dispatcher(sequential())
+        d.prepare()
+        d.cancel("user_stop")
+        d.run()
+        assert any("stop not acknowledged" in line for line in r.logs)
+    finally:
+        r.ctrl.disconnect()

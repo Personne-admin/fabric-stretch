@@ -177,3 +177,40 @@ def test_lights_context_raises_when_leds_are_never_confirmed():
         assert port.led_mask == 0 and port.power == 0
     finally:
         ctrl.disconnect()
+
+
+def test_stop_ack_and_abort_are_distinct_from_move_completion():
+    assert protocol.stop() == "S"
+    ctrl = ArduinoController()
+    ctrl.feed(b"MOVE_ABORTED reason=panic remaining=42\nSTOPPED remaining=42\n")
+    assert ctrl.move_aborted.is_set() and not ctrl.move_done.is_set()
+    assert ctrl.last_move_abort == {"reason": "panic", "remaining": 42}
+    assert ctrl.wait_stopped(0) and ctrl.last_stop_remaining == 42
+
+
+def test_stop_round_trip_clears_pending_motion_and_force_limit():
+    ctrl, port = connected(answer_moves=False)
+    try:
+        ctrl.set_force_limit(99, 200)
+        ctrl.jog(100)
+        assert port.moving
+        ctrl.stop()
+        assert ctrl.wait_stopped(1)
+        assert ctrl.move_aborted.is_set() and not ctrl.move_done.is_set()
+        assert ctrl.last_stop_remaining == 100
+        assert not port.moving and port.limit_n == 0
+        port.answer_moves = True
+        ctrl.jog(10)
+        assert ctrl.wait_move_done(1)
+        assert not ctrl.move_aborted.is_set()
+    finally:
+        ctrl.disconnect()
+
+
+def test_old_firmware_does_not_produce_a_false_stop_ack():
+    ctrl, _ = connected(answer_stop=False)
+    try:
+        ctrl.stop()
+        assert not ctrl.wait_stopped(0.1)
+    finally:
+        ctrl.disconnect()

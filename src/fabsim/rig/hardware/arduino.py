@@ -30,6 +30,10 @@ class ArduinoController:
         self._stop_reader = threading.Event()
 
         self.move_done = threading.Event()
+        self.move_aborted = threading.Event()
+        self.stopped = threading.Event()
+        self.last_move_abort: dict = {}
+        self.last_stop_remaining: int | None = None
         self.lights_on = threading.Event()
         self.power_ack = threading.Event()
         self.limit_armed = threading.Event()
@@ -111,6 +115,12 @@ class ArduinoController:
         reply = protocol.parse_reply(line)
         if reply.kind == protocol.MOVE_DONE:
             self.move_done.set()
+        elif reply.kind == protocol.MOVE_ABORTED:
+            self.last_move_abort = reply.data
+            self.move_aborted.set()
+        elif reply.kind == protocol.STOPPED:
+            self.last_stop_remaining = reply.data.get("remaining")
+            self.stopped.set()
         elif reply.kind == protocol.LIMIT_TRIP:
             self.last_trip_force = reply.data.get("force_n")
             self.limit_tripped.set()
@@ -139,7 +149,17 @@ class ArduinoController:
 
     def jog(self, steps: int) -> None:
         self.move_done.clear()
+        self.move_aborted.clear()
+        self.last_move_abort = {}
         self.send(protocol.jog(steps))
+
+    def stop(self) -> None:
+        self.stopped.clear()
+        self.last_stop_remaining = None
+        self.send(protocol.stop())
+
+    def wait_stopped(self, timeout: float = 1.0) -> bool:
+        return self.stopped.wait(timeout)
 
     def set_leds(self, mask: int) -> None:
         self.lights_on.clear()

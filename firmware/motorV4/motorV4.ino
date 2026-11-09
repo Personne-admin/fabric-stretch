@@ -104,10 +104,10 @@ void setup() {
     digitalPinToInterrupt(Constants::Pin::IrqSecond),
     []() {
       if (Stepper::is_busy())
-        Stepper::stop();
+        Stepper::stop_from_isr();
       else {
         digitalWriteFast(Constants::Pin::GreenLED, HIGH);
-        Stepper::move(-400);
+        Stepper::move_from_isr(-400);
       }
     },
     FALLING);
@@ -116,10 +116,10 @@ void setup() {
     digitalPinToInterrupt(Constants::Pin::IrqFirst),
     []() {
       if (Stepper::is_busy())
-        Stepper::stop();
+        Stepper::stop_from_isr();
       else {
         digitalWriteFast(Constants::Pin::RedLED, HIGH);
-        Stepper::move(400);
+        Stepper::move_from_isr(400);
       }
     },
     FALLING);

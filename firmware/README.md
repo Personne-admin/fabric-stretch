@@ -49,13 +49,13 @@ Rig setup and calibration: [Hardware](../docs/hardware.md).
 | 80 | `int16` | tare: zero counts (`@`) |
 | 84 | `float` (4 bytes) | load-cell coefficient in N per count (`*`) |
 
+## Tests
+
+`pytest tests/python/test_firmware.py` compiles the real command parser and stepper against
+native I/O stubs (needs g++). It checks stop, interruption, auto-release and deferred tension reads.
+These tests do not replace an AVR build or a test on the rig.
+
 ## Known issues
-
-### No stop command
-
-Stop ends acquisition on the PC; a commanded move continues until completion, a panic button
-or a force-limit trip. The host times out waiting for `MOVE_DONE`. Add an `S` command replying
-`STOPPED remaining=<n>`, and `MOVE_ABORTED` for interrupted moves.
 
 ### Unchecked LED acknowledgement
 
@@ -64,9 +64,7 @@ reply `FAIL dev=<i>` on failure. The host currently has to judge image brightnes
 
 ### Interrupt safety
 
-The panic-button ISRs call `Stepper::move`, which calls `interrupts()` inside the handler.
-They should use `move_from_isr`. `check_force_limit_from_isr` also does floating-point work
-inside the Timer2 ISR. It may overrun the tick, introduce step jitter and lose bit-banged
+`check_force_limit_from_isr` does floating-point work inside the Timer2 ISR. It may overrun the tick, introduce step jitter and lose bit-banged
 load-cell frames; the ISR duration has not been measured.
 
 `Tension::Detail::value` is written by `raw_counts()` from both the ISR and `loop()` without
@@ -89,12 +87,10 @@ Reply `limit: refused` instead; the host currently cannot tell.
 A fresh chip contains `0xFF`, which produces a NaN coefficient. Set the coefficient before
 using a new board; see [Load cell calibration](../docs/hardware.md#load-cell).
 
-### Blocking tension reads
+### Serial throughput
 
-`t` busy-waits for the motor for up to 30 s, during which no further command is parsed.
-A `TENSION` line also takes about 100 ms to transmit at the current baud rate.
-A non-blocking implementation and a change to 115200 baud would help. A baud-rate change must update
-both sides as described in [Line settings](../docs/serial_protocol.md#line-settings).
+A `TENSION` line takes about 100 ms at the current baud rate. Raising it requires changing
+[host and firmware together](../docs/serial_protocol.md#line-settings).
 
 ### Extra motor period
 

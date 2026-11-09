@@ -4,6 +4,8 @@
 
 - `fabsim validate-package` checks manifests and image files without the viewer.
 - Viewer package loading runs in the background, with progress and cancellation.
+- Controller `S` command, interrupted-move replies, and host stop handling. Tension reads no
+  longer block command parsing; panic handlers keep interrupts disabled.
 - Fixed the Python sphere fixture and lint/format checks.
 
 ## [0.1.0] - 2026-11-08

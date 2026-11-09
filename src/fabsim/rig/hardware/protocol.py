@@ -8,6 +8,8 @@ BAUD = 9600
 
 #: Reply kinds returned by :func:`parse_reply`.
 MOVE_DONE = "move_done"
+MOVE_ABORTED = "move_aborted"
+STOPPED = "stopped"
 LIMIT_TRIP = "limit_trip"
 LIMIT_ARMED = "limit_armed"
 LIMIT_OFF = "limit_off"
@@ -29,6 +31,10 @@ def jog(steps: int) -> str:
     steps = int(steps)
 
     return f"+{steps}" if steps >= 0 else f"-{-steps}"
+
+
+def stop() -> str:
+    return "S"
 
 
 def leds(mask: int) -> str:
@@ -112,7 +118,21 @@ def parse_force_telemetry(line: str) -> dict | None:
 
 def parse_reply(line: str) -> Reply:
     text = line.strip()
-    if "MOVE_DONE" in text:
+    if text.startswith("MOVE_ABORTED"):
+        fields = dict(re.findall(r"([a-z_]+)=([^ ]+)", text))
+        try:
+            fields["remaining"] = int(fields["remaining"])
+        except (KeyError, ValueError):
+            fields.pop("remaining", None)
+        return Reply(MOVE_ABORTED, text, fields)
+    if text.startswith("STOPPED"):
+        fields = dict(_FIELD_RE.findall(text))
+        try:
+            remaining = int(fields["remaining"])
+        except (KeyError, ValueError):
+            return Reply(STOPPED, text)
+        return Reply(STOPPED, text, {"remaining": remaining})
+    if text == "MOVE_DONE":
         return Reply(MOVE_DONE, text)
     if text.startswith("LIMIT_TRIP"):
         telemetry = parse_force_telemetry(text)

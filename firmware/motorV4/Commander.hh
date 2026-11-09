@@ -11,14 +11,62 @@
 #include "Stepper.hh"
 #include "Tensiometer.hh"
 
-// Serial command parser. The command and reply table is documented in firmware/README.md;
+// Serial command parser. Commands and replies are documented in docs/serial_protocol.md;
 // the host side is fabsim.rig.hardware.protocol.
 namespace Command {
 
+bool tension_pending = false;
+uint32_t tension_requested_at = 0;
+uint32_t tension_idle_at = 0;
+bool tension_waiting_motor = false;
+
+void poll_tension() {
+  if (!tension_pending)
+    return;
+  const uint32_t now = millis();
+  if (Stepper::is_busy()) {
+    if (now - tension_requested_at >= 30000) {
+      tension_pending = false;
+      Serial.println(F("tension: N/A"));
+    }
+    return;
+  }
+  if (tension_waiting_motor) {
+    tension_waiting_motor = false;
+    tension_idle_at = now;
+  }
+  if (!Tension::is_ready()) {
+    if (now - tension_idle_at >= 300) {
+      tension_pending = false;
+      Serial.println(F("tension: N/A"));
+    }
+    return;
+  }
+  const uint8_t saved = SREG;
+  noInterrupts();
+  const int16_t raw_counts = Tension::raw_counts();
+  const int16_t zero = Tension::Detail::zero;
+  const float coef = Tension::Detail::coef;
+  Tension::clear_ready();
+  SREG = saved;
+  const float force = coef * (static_cast<float>(zero) - raw_counts);
+  tension_pending = false;
+  Serial.print(F("TENSION force_n="));
+  Serial.print(force, 6);
+  Serial.print(F(" raw_counts="));
+  Serial.print(raw_counts);
+  Serial.print(F(" zero_counts="));
+  Serial.print(zero);
+  Serial.print(F(" calibration_n_per_count="));
+  Serial.println(coef, 8);
+}
+
 // Handles at most one command per call (called from loop()).
 void poll() {
-  if (Serial.available() == 0)
+  if (Serial.available() == 0) {
+    poll_tension();
     return;
+  }
 
   int c = Serial.read();
 
@@ -94,40 +142,24 @@ void poll() {
       }
       break;
 
-    case 't':
+    case 'S':
       {
-        uint32_t motor_t0 = millis();
-        while (Stepper::is_busy() && (millis() - motor_t0) < 30000)
-          Stepper::poll();
-
-        if (Stepper::is_busy()) {
-          Serial.println(F("tension: N/A"));
-          break;
-        }
-
-        uint32_t t0 = millis();
-        while ((millis() - t0) < 300)
-          if (Tension::is_ready())
-            break;
-
-        if (Tension::is_ready()) {
-          noInterrupts();
-          int16_t raw_counts = Tension::raw_counts();
-          float v = Tension::force_newtons_from_raw(raw_counts);
-          interrupts();
-          Tension::clear_ready();
-          Serial.print(F("TENSION force_n="));
-          Serial.print(v, 6);
-          Serial.print(F(" raw_counts="));
-          Serial.print(raw_counts);
-          Serial.print(F(" zero_counts="));
-          Serial.print(Tension::Detail::zero);
-          Serial.print(F(" calibration_n_per_count="));
-          Serial.println(Tension::Detail::coef, 8);
-        } else {
+        const uint32_t remaining = Stepper::stop();
+        if (tension_pending) {
+          tension_pending = false;
           Serial.println(F("tension: N/A"));
         }
+        Stepper::poll();
+        Serial.print(F("STOPPED remaining="));
+        Serial.println(remaining);
       }
+      break;
+
+    case 't':
+      tension_pending = true;
+      tension_requested_at = millis();
+      tension_idle_at = tension_requested_at;
+      tension_waiting_motor = Stepper::is_busy();
       break;
 
     case 'i':
@@ -174,6 +206,7 @@ void poll() {
       Serial.println(static_cast<char>(c));
       break;
   }
+  poll_tension();
 }
 
 }  // namespace Command

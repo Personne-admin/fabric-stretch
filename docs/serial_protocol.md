@@ -29,13 +29,14 @@ Python paths are under `src/fabsim/`. See [Firmware](../firmware/README.md) for 
 | --- | --- | --- |
 | `+N` | move `N` command steps in the loading direction. A new move replaces the one in progress | `jog: +N`, later `MOVE_DONE` |
 | `-N` | move `N` steps in the release direction | `jog: -N`, later `MOVE_DONE` |
+| `S` | stop the motor and disarm the force limit | `STOPPED remaining=<n>` |
 | `L<mask>` | LED outputs, `mask` 0 to 255, bit `b` is output `b` | `leds: <mask> OK` (non-zero mask), `leds: 0` (zero mask) |
 | `P<p>` | LED power 0 to 255 (potentiometer value `255 - p`) | `power: <p>` |
 | `V<m>` | speed multiplier (timer period `max(64 / m, 2)` counts, integer division) | none |
 | `#` | 20 ms pulse on the camera trigger pin | `trigger` |
 | `@` | tare: store the last decoded load-cell value as zero (EEPROM) | `zero: <counts>` |
 | `*<c>` | store the load-cell coefficient `c` in N per count (EEPROM); `c = 0` or unparsable is ignored | `coef: <c>` (none if ignored) |
-| `t` | wait up to 30 s for the motor to stop, then up to 300 ms for a fresh load-cell frame | `TENSION force_n=<f> raw_counts=<i> zero_counts=<i> calibration_n_per_count=<f>` or `tension: N/A` |
+| `t` | request force; wait asynchronously up to 30 s for the motor and 300 ms for a fresh frame | `TENSION force_n=<f> raw_counts=<i> zero_counts=<i> calibration_n_per_count=<f>` or `tension: N/A` |
 | `F<limit>[,<steps>[,<dir>]]` | arm the overload trip (see [Force limit](#force-limit)); `F0` disarms | `LIMIT_ARMED limit_n=<f> release_motor_steps=<n> release_dir_positive=<0\|1>` or `limit: off` |
 | `i` | liveness query | `status: API ready` |
 | other | | `?<c>` |
@@ -47,6 +48,7 @@ Python paths are under `src/fabsim/`. See [Firmware](../firmware/README.md) for 
 | Line | Meaning |
 | --- | --- |
 | `MOVE_DONE` | a move ended normally. Not sent after a zero-length move, after a stop by a panic button, or after a force-limit trip. The auto-release move after a trip ends with one if its step count is positive |
+| `MOVE_ABORTED reason=<reason> remaining=<n>` | interrupted move; reason is `host_stop`, `panic`, `force_limit` or `replaced` |
 | `LIMIT_TRIP force_n=<f> raw_counts=<i> zero_counts=<i> calibration_n_per_count=<f> limit_n=<f>` | the armed limit tripped; the motor was stopped and the auto-release (if any) started |
 | `OneWire search:` then one `3A:xx:xx:xx:00:00:00:xx` per line | boot: 1-Wire devices found (the LED switches) |
 | `stretch-motor ready` | boot finished. The firmware prints no version |
@@ -60,7 +62,9 @@ The panic buttons (pins 2 and 3) can start or stop moves without any command. Th
 
 | Kind | Line |
 | --- | --- |
-| `move_done` | contains `MOVE_DONE` |
+| `move_done` | `MOVE_DONE` |
+| `move_aborted` | `MOVE_ABORTED ...`; reason and remaining steps in `data` |
+| `stopped` | `STOPPED ...`; remaining steps in `data` |
 | `limit_trip` | starts with `LIMIT_TRIP` (also the old form `LIMIT_TRIP <force>`); `data` has the force fields |
 | `limit_armed`, `limit_off` | `LIMIT_ARMED ...`, `limit: off` |
 | `leds_ok` | `leds:` line containing `OK`; any other `leds:` line (`leds: 0`) is `leds_off` |
@@ -81,8 +85,16 @@ ticks: 1.024 ms at `V1`, 0.512 ms at `V2`. A non-zero move runs `N + 1` periods.
 that duration to set its completion deadline; physical distance is described under
 [Motor and clamp](hardware.md#motor-and-clamp).
 
-There is no stop command. See [No stop command](../firmware/README.md#no-stop-command) for
-how the host handles interrupted moves and timeouts.
+## Stopping
+
+`S` disables the motor, clears pending completion and disarms the force limit, including during
+auto-release. It cancels a pending tension request with `tension: N/A`, reports any interrupted
+moves, then replies `STOPPED remaining=<n>` (also when already idle).
+Panic buttons disarm the force limit too. Interrupted moves do not send `MOVE_DONE`.
+
+The host sends `S` on cancellation or run failure and reports a missing acknowledgement.
+Older firmware replies `?S` and cannot stop remotely; reflash before relying on this command.
+`t` requests no longer block command parsing, though replies still share the serial line.
 
 ## Force limit
 

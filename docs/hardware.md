@@ -86,8 +86,8 @@ clamp width (default 0.2 m).
 **Safety limits.** *Max force (N)* arms the controller's [force-limit trip](serial_protocol.md#force-limit).
 *Release steps* sets the return movement after a trip. The app also checks each reading and stops
 the run. *Max stretch (mm)* stops the run before the travel limit is exceeded; `0` disables a limit.
-The Stop button ends acquisition on the PC but cannot interrupt a running motor move; see
-[No stop command](../firmware/README.md#no-stop-command).
+Stop sends the controller's [stop command](serial_protocol.md#stopping). If it is not
+acknowledged, check the controller and use the physical panic button. Older firmware needs reflashing.
 
 ### Motor and clamp
 
