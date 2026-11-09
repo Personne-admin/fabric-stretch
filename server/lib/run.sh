@@ -1,5 +1,7 @@
 # shellcheck shell=bash
 
+# Options are also read by setup.sh.
+# shellcheck disable=SC2034
 parse_opts() {
   local allowed=() arg
   while [[ $# -gt 0 && $1 != -- ]]; do allowed+=("$1"); shift; done
