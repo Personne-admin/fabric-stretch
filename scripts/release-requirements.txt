@@ -2,3 +2,4 @@ pyinstaller==6.22.3
 pyinstaller-hooks-contrib==2026.9
 build==1.6.1
 pyueye==4.96.952
+pyserial==3.5

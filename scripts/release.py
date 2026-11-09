@@ -93,7 +93,7 @@ def python_licenses(stage: Path):
     for name in packages:
         dist = importlib.metadata.distribution(name)
         folder = dest / f"{dist.metadata['Name']}-{dist.version}"
-        folder.mkdir()
+        folder.mkdir(exist_ok=True)
         (folder / "METADATA.txt").write_text(dist.read_text("METADATA") or "", encoding="utf-8")
         for file in dist.files or []:
             if file.name.lower().startswith(("license", "licence", "copying", "copyright", "notice")):
@@ -106,18 +106,12 @@ def python_licenses(stage: Path):
         if source.is_file():
             shutil.copyfile(source, dest / "Python-LICENSE.txt")
             break
-    import tkinter
-
-    interp = tkinter.Tcl()
-    for variable in ("tcl_library", "tk_library"):
-        try:
-            library = Path(interp.eval(f"set {variable}"))
-        except tkinter.TclError:
-            # Loading Tk solely to find its licence needs a display on Linux.
-            library = Path(interp.eval("set tcl_library")).parent / "tk8.6"
-        source = library / "license.terms"
-        if source.is_file():
-            shutil.copyfile(source, dest / f"{variable}-LICENSE.txt")
+    # Some wheels and distro Tcl/Tk packages omit the licence files.
+    for source in (ROOT / "packaging/licenses").glob("*.txt"):
+        shutil.copyfile(source, dest / source.name)
+    ueye = importlib.metadata.distribution("pyueye").locate_file("pyueye/ueye.py")
+    header = Path(ueye).read_text(encoding="utf-8").split("from __future__", 1)[0]
+    (dest / "pyueye-LICENSE.txt").write_text(header, encoding="utf-8")
 
 
 def rust_licenses(stage: Path, target: str):
@@ -316,6 +310,7 @@ def wix_source(stage: Path, output: Path):
 def deb(stage: Path, output: Path):
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
+        root.chmod(0o755)
         app = root / "opt/fabric-stretch"
         shutil.copytree(stage, app)
         binaries = root / "usr/bin"

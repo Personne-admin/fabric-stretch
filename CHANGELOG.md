@@ -4,6 +4,7 @@
 
 - Windows x64 MSI/ZIP and Linux x64 DEB/tar builds, with the viewer, CLI, rig app and demo.
   CI tests both portable builds and installed copies before publishing a tagged release.
+  Each bundle includes dependency licence notices.
 - Python and Rust share release version 0.4.0.
 - `fabsim validate-package` checks manifests and image files without the viewer.
 - Viewer package loading runs in the background, with progress and cancellation.

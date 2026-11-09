@@ -67,7 +67,7 @@ jobs:
         run: cargo test --workspace
       - name: Headless snapshot smoke test
         run: |
-          cargo run --release -p fabric-viewer --example press_snapshot -- examples/demo \
+          cargo run --locked -p fabric-viewer --example press_snapshot -- examples/demo \
             --indentation 12 --relight --size 400x240 --out "$RUNNER_TEMP/press.png"
           test -s "$RUNNER_TEMP/press.png"
 
