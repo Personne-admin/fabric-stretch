@@ -56,8 +56,9 @@ The first usable set is selected. Missing variants are disabled; invalid package
 as skipped. See [format checks](formats.md#what-the-viewer-requires) and
 [v2 compatibility](formats.md#version-2-packages-and-how-the-viewer-treats-them).
 
-**Reset** or **Rescan** clears discovery and load errors. Changed manifests and textures also
-reload when their modification times change.
+Discovery and package loading run in the background. The view shows image-check progress;
+**Cancel loading** stops the request, and **Rescan** retries it. Reset/Rescan also clears cached
+errors. Changed manifests and textures reload when their modification times change.
 
 ## Internals
 
@@ -160,7 +161,8 @@ The GPU cache targets 512 MiB but keeps textures in use. File times are checked 
 per second. Failed decodes retry on file changes or Rescan; vanished files keep their last
 good texture.
 
-Package loading checks PNG headers on up to eight threads, but still blocks the UI until done.
+A separate worker discovers and loads packages; PNG header checks use up to eight threads.
+Closing a project or rescanning cancels its old requests and discards late results.
 
 ### Headless snapshots: `press_snapshot`
 

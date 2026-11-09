@@ -322,6 +322,7 @@ impl PressTab {
             .iter()
             .find(|s| Some(&s.root_key) == self.project_root.as_ref());
 
+        let discovering = slot.is_some_and(|s| store.request_discovery(ui.ctx(), &s.root_key));
         let sets: Vec<PackageSet> = slot
             .map(|s| store.sets(&s.root_key).to_vec())
             .unwrap_or_default();
@@ -338,7 +339,7 @@ impl PressTab {
         let package: Option<Result<Rc<MaterialPackage>, String>> = variant
             .as_ref()
             .and_then(|v| v.dir.as_ref())
-            .map(|dir| store.package(dir));
+            .and_then(|dir| store.request_package(ui.ctx(), dir));
 
         let actions = self.controls_row(
             ui,
@@ -373,6 +374,16 @@ impl PressTab {
             ui.label("The project for this view was closed. Choose another project.");
             return out;
         };
+        if discovering {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Looking for packages…");
+                if ui.button("Cancel loading").clicked() {
+                    store.cancel_loading(&slot.root_key);
+                }
+            });
+            return out;
+        }
         let (Some(set), Some(orientation), Some(variant)) = (set, orientation, variant.as_ref())
         else {
             ui.label(
@@ -400,7 +411,22 @@ impl PressTab {
                 }
             }
             None => {
-                ui.label("This orientation has no package.");
+                if let Some(dir) = variant.dir.as_ref() {
+                    let (checked, total) = store.loading_progress(dir);
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(if total == 0 {
+                            "Loading package…".into()
+                        } else {
+                            format!("Loading package… {checked}/{total} images checked")
+                        });
+                        if ui.button("Cancel loading").clicked() {
+                            store.cancel_loading(&slot.root_key);
+                        }
+                    });
+                } else {
+                    ui.label("This orientation has no package.");
+                }
             }
         }
         out
@@ -1170,8 +1196,17 @@ mod tests {
 
     /// Runs a few frames so state that depends on the previous frame settles.
     fn settle(view: &mut PressTab, slots: &[ProjectSlot], store: &mut PackageStore) {
-        for _ in 0..3 {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        for i in 0.. {
             frame(view, slots, store);
+            if i >= 2 && !store.metadata_is_pending() {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "package load timed out"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
     }
 
@@ -1331,9 +1366,8 @@ mod tests {
         let s = view.snapshot();
         assert_eq!(s.control, None, "automatic");
         assert!(s.force_n.is_some() && s.lambda.unwrap() > 1.0, "{s:?}");
-        let package = store
-            .package(&demo_project().join("material_package_v3/warp"))
-            .unwrap();
+        let package =
+            MaterialPackage::load(&demo_project().join("material_package_v3/warp")).unwrap();
         let (lo, hi) = package.force_fit(PressBranch::Loading).unwrap().range();
         let force = s.force_n.unwrap();
         assert!(force > lo && force < hi);
@@ -1408,9 +1442,8 @@ mod tests {
         let mut view = PressTab::new();
         view.control = Some(ControlMode::Force);
         settle(&mut view, &slots, &mut store);
-        let package = store
-            .package(&demo_project().join("material_package_v3/warp"))
-            .unwrap();
+        let package =
+            MaterialPackage::load(&demo_project().join("material_package_v3/warp")).unwrap();
         let loading = package.force_fit(PressBranch::Loading).unwrap().range();
         view.force_n = Some(loading.1 + 100.0);
         view.indentation = Some(10.0);

@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Value of the `format` key of every material package.
 pub const FORMAT: &str = "fabsim-material-rgb";
@@ -194,9 +195,31 @@ pub struct MaterialPackage {
     release_fit: Option<ForceFit>,
 }
 
+#[derive(Default)]
+pub struct LoadProgress {
+    pub cancelled: AtomicBool,
+    pub checked: AtomicUsize,
+    pub total: AtomicUsize,
+}
+
+impl LoadProgress {
+    fn check_cancelled(&self) -> Result<(), String> {
+        if self.cancelled.load(Ordering::Relaxed) {
+            Err("Loading cancelled".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl MaterialPackage {
     /// Reads and validates the package in `root`.
     pub fn load(root: &Path) -> Result<Self, String> {
+        Self::load_with_progress(root, &LoadProgress::default())
+    }
+
+    pub fn load_with_progress(root: &Path, progress: &LoadProgress) -> Result<Self, String> {
+        progress.check_cancelled()?;
         let manifest_path = root.join("package.json");
         let bytes = std::fs::read(&manifest_path)
             .map_err(|e| format!("{}: {e}", manifest_path.display()))?;
@@ -212,6 +235,7 @@ impl MaterialPackage {
         if !matches!(manifest.version, 2 | 3) {
             return Err(unsupported_version(manifest.version.into()));
         }
+        progress.check_cancelled()?;
         let atlas = &manifest.atlas;
         if atlas.dimensions_px.contains(&0)
             || atlas.grid_cells[2..].contains(&0)
@@ -245,6 +269,7 @@ impl MaterialPackage {
         let convert = |branch: &str, states: Vec<StateMeta>| -> Result<Vec<State>, String> {
             let mut out = Vec::with_capacity(states.len());
             for (i, s) in states.into_iter().enumerate() {
+                progress.check_cancelled()?;
                 if !(s.stretch_ratio.is_finite() && s.stretch_ratio > 0.0 && s.force_n.is_finite())
                 {
                     return Err(format!(
@@ -292,6 +317,7 @@ impl MaterialPackage {
                 .iter()
                 .chain(&release)
                 .map(|s| (s.texture.as_path(), texture_px)),
+            progress,
         )?;
         let photometric = photometric_of(
             &manifest.ps,
@@ -299,7 +325,9 @@ impl MaterialPackage {
             &loading,
             &release,
             texture_px,
+            progress,
         );
+        progress.check_cancelled()?;
         let pull_vertical = atlas.active_grid_axis.as_deref() != Some("horizontal");
         let loading_fit = ForceFit::from_states(&loading);
         let release_fit = ForceFit::from_states(&release);
@@ -445,17 +473,25 @@ fn check_size(path: &Path, expected: [u32; 2]) -> Result<(), String> {
 }
 
 /// Check PNG headers in parallel, returning the first failure in input order.
-fn check_sizes<'a>(files: impl Iterator<Item = (&'a Path, [u32; 2])>) -> Result<(), String> {
+fn check_sizes<'a>(
+    files: impl Iterator<Item = (&'a Path, [u32; 2])>,
+    progress: &LoadProgress,
+) -> Result<(), String> {
     const THREADS: usize = 8;
     let files: Vec<(&Path, [u32; 2])> = files.collect();
+    progress.total.fetch_add(files.len(), Ordering::Relaxed);
     let chunk = files.len().div_ceil(THREADS).max(1);
     std::thread::scope(|scope| {
         let workers: Vec<_> = files
             .chunks(chunk)
             .map(|part| {
                 scope.spawn(move || {
-                    part.iter()
-                        .try_for_each(|(path, expected)| check_size(path, *expected))
+                    part.iter().try_for_each(|(path, expected)| {
+                        progress.check_cancelled()?;
+                        check_size(path, *expected)?;
+                        progress.checked.fetch_add(1, Ordering::Relaxed);
+                        Ok(())
+                    })
                 })
             })
             .collect();
@@ -495,6 +531,7 @@ fn photometric_of(
     loading: &[State],
     release: &[State],
     texture_px: [u32; 2],
+    progress: &LoadProgress,
 ) -> Result<Photometric, String> {
     let Some(ps) = ps.as_ref().filter(|_| version >= 3) else {
         return Err(NO_PHOTOMETRIC_NOTE.into());
@@ -509,12 +546,15 @@ fn photometric_of(
     if !(ps.albedo_scale.is_finite() && ps.albedo_scale > 0.0) {
         return Err("Photometric layers have an invalid albedo_scale".into());
     }
-    check_sizes(all.flat_map(|state| {
-        [&state.albedo, &state.normal]
-            .into_iter()
-            .flatten()
-            .map(|path| (path.as_path(), texture_px))
-    }))
+    check_sizes(
+        all.flat_map(|state| {
+            [&state.albedo, &state.normal]
+                .into_iter()
+                .flatten()
+                .map(|path| (path.as_path(), texture_px))
+        }),
+        progress,
+    )
     .map_err(|e| format!("Photometric layer: {e}"))?;
     Ok(Photometric {
         albedo_scale: ps.albedo_scale,
@@ -759,6 +799,10 @@ pub struct Discovery {
 
 /// Finds the package sets of a project and the packages that had to be skipped.
 pub fn discover(project_root: &Path) -> Discovery {
+    discover_with_progress(project_root, &LoadProgress::default())
+}
+
+pub fn discover_with_progress(project_root: &Path, progress: &LoadProgress) -> Discovery {
     let mut problems = Vec::new();
     let sets = SET_DEFS
         .iter()
@@ -770,6 +814,9 @@ pub fn discover(project_root: &Path) -> Discovery {
                 };
                 // Ignore report files beside orientation folders.
                 for entry in entries.flatten().filter(|e| e.path().is_dir()) {
+                    if progress.check_cancelled().is_err() {
+                        return None;
+                    }
                     let name = entry.file_name().to_string_lossy().into_owned();
                     match peek(&entry.path()) {
                         Peek::Package { .. } if !names.contains(&name) => names.push(name),
@@ -793,6 +840,9 @@ pub fn discover(project_root: &Path) -> Discovery {
                     };
                     // Classified by the package's own `tiling` block, not by the folder name.
                     for folder in [def.untiled, def.tiled] {
+                        if progress.check_cancelled().is_err() {
+                            break;
+                        }
                         let dir = project_root.join(folder).join(&name);
                         match peek(&dir) {
                             Peek::Package { tiled: true } => {

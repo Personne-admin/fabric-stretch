@@ -6,12 +6,14 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{atomic::Ordering, mpsc, Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use eframe::egui_wgpu;
 
-use crate::material_package::{discover, Discovery, MaterialPackage, PackageSet};
+use crate::material_package::{
+    discover_with_progress, Discovery, LoadProgress, MaterialPackage, PackageSet,
+};
 use crate::press_gpu::{GpuContext, GpuTexture};
 use crate::press_render::{file_stamp, MipChain, SceneFiles, TexKind};
 
@@ -35,6 +37,101 @@ struct PackageEntry {
     result: Result<Rc<MaterialPackage>, String>,
     /// Modification time of `package.json` when it was read.
     stamp: Option<SystemTime>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum LoadKey {
+    Project(PathBuf),
+    Package(PathBuf),
+}
+
+impl LoadKey {
+    fn path(&self) -> &Path {
+        match self {
+            Self::Project(p) | Self::Package(p) => p,
+        }
+    }
+}
+
+struct LoadTicket {
+    id: u64,
+    progress: Arc<LoadProgress>,
+    stamp: Option<SystemTime>,
+}
+
+struct LoadJob {
+    key: LoadKey,
+    id: u64,
+    progress: Arc<LoadProgress>,
+}
+
+enum Loaded {
+    Project(Discovery),
+    Package(Result<Box<MaterialPackage>, String>),
+}
+
+struct LoadResult {
+    key: LoadKey,
+    id: u64,
+    loaded: Loaded,
+}
+
+struct MetadataLoader {
+    jobs: mpsc::Sender<LoadJob>,
+    results: mpsc::Receiver<LoadResult>,
+}
+
+impl MetadataLoader {
+    fn spawn(wake: egui::Context) -> Self {
+        Self::spawn_with(wake, |key, progress| match key {
+            LoadKey::Project(root) => Loaded::Project(discover_with_progress(root, progress)),
+            LoadKey::Package(dir) => {
+                Loaded::Package(MaterialPackage::load_with_progress(dir, progress).map(Box::new))
+            }
+        })
+    }
+
+    fn spawn_with(
+        wake: egui::Context,
+        load: impl Fn(&LoadKey, &LoadProgress) -> Loaded + Send + 'static,
+    ) -> Self {
+        let (jobs, job_rx) = mpsc::channel::<LoadJob>();
+        let (result_tx, results) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("press-packages".into())
+            .spawn(move || {
+                while let Ok(job) = job_rx.recv() {
+                    if job.progress.cancelled.load(Ordering::Relaxed) {
+                        continue;
+                    }
+                    let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        load(&job.key, &job.progress)
+                    }))
+                    .unwrap_or_else(|_| match job.key {
+                        LoadKey::Project(_) => Loaded::Project(Discovery {
+                            sets: vec![],
+                            problems: vec!["Package discovery failed unexpectedly".into()],
+                        }),
+                        LoadKey::Package(_) => {
+                            Loaded::Package(Err("Package loading failed unexpectedly".into()))
+                        }
+                    });
+                    if result_tx
+                        .send(LoadResult {
+                            key: job.key,
+                            id: job.id,
+                            loaded,
+                        })
+                        .is_err()
+                    {
+                        break;
+                    }
+                    wake.request_repaint();
+                }
+            })
+            .expect("spawn package loader");
+        Self { jobs, results }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -115,6 +212,9 @@ pub enum Textures {
 pub struct PackageStore {
     discoveries: HashMap<PathBuf, Discovery>,
     packages: HashMap<PathBuf, PackageEntry>,
+    metadata_loader: Option<MetadataLoader>,
+    metadata_pending: HashMap<LoadKey, LoadTicket>,
+    next_load_id: u64,
     gpu: Option<GpuContext>,
     gpu_textures: Vec<GpuEntry>,
     /// Textures handed to the decoder and not yet uploaded, with the file stamp at request time.
@@ -131,6 +231,9 @@ impl Default for PackageStore {
         Self {
             discoveries: HashMap::new(),
             packages: HashMap::new(),
+            metadata_loader: None,
+            metadata_pending: HashMap::new(),
+            next_load_id: 0,
             gpu: None,
             gpu_textures: Vec::new(),
             pending: HashMap::new(),
@@ -175,25 +278,163 @@ impl PackageStore {
         self.gpu.as_ref()
     }
 
-    fn discovery(&mut self, project_root: &Path) -> &Discovery {
+    pub fn request_discovery(&mut self, ctx: &egui::Context, root: &Path) -> bool {
+        self.poll_metadata();
+        if self.discoveries.contains_key(root) {
+            return false;
+        }
+        self.request_metadata(ctx, LoadKey::Project(root.to_path_buf()));
+        true
+    }
+
+    pub fn sets(&self, root: &Path) -> &[PackageSet] {
         self.discoveries
-            .entry(project_root.to_path_buf())
-            .or_insert_with(|| discover(project_root))
+            .get(root)
+            .map_or(&[], |d| d.sets.as_slice())
     }
 
-    /// The package sets of a project (cached until [`PackageStore::rescan`]).
-    pub fn sets(&mut self, project_root: &Path) -> &[PackageSet] {
-        &self.discovery(project_root).sets
+    pub fn problems(&self, root: &Path) -> &[String] {
+        self.discoveries
+            .get(root)
+            .map_or(&[], |d| d.problems.as_slice())
     }
 
-    /// Package directories of the project that were skipped, each with the reason.
-    pub fn problems(&mut self, project_root: &Path) -> &[String] {
-        &self.discovery(project_root).problems
+    pub fn request_package(
+        &mut self,
+        ctx: &egui::Context,
+        dir: &Path,
+    ) -> Option<Result<Rc<MaterialPackage>, String>> {
+        self.poll_metadata();
+        let stamp = manifest_stamp(dir);
+        if self.packages.get(dir).is_some_and(|e| e.stamp != stamp) {
+            self.packages.remove(dir);
+        }
+        if let Some(entry) = self.packages.get(dir) {
+            return Some(entry.result.clone());
+        }
+        let key = LoadKey::Package(dir.to_path_buf());
+        if self
+            .metadata_pending
+            .get(&key)
+            .is_some_and(|t| t.stamp != stamp)
+        {
+            if let Some(ticket) = self.metadata_pending.remove(&key) {
+                ticket.progress.cancelled.store(true, Ordering::Relaxed);
+            }
+        }
+        self.request_metadata(ctx, key);
+        None
+    }
+
+    fn request_metadata(&mut self, ctx: &egui::Context, key: LoadKey) {
+        if !self.metadata_pending.contains_key(&key) {
+            let loader = self
+                .metadata_loader
+                .get_or_insert_with(|| MetadataLoader::spawn(ctx.clone()));
+            self.next_load_id += 1;
+            let progress = Arc::new(LoadProgress::default());
+            let job = LoadJob {
+                key: key.clone(),
+                id: self.next_load_id,
+                progress: progress.clone(),
+            };
+            let stamp = match &key {
+                LoadKey::Package(dir) => manifest_stamp(dir),
+                _ => None,
+            };
+            if loader.jobs.send(job).is_ok() {
+                self.metadata_pending.insert(
+                    key,
+                    LoadTicket {
+                        id: self.next_load_id,
+                        progress,
+                        stamp,
+                    },
+                );
+            }
+        }
+        ctx.request_repaint_after(Duration::from_millis(16));
+    }
+
+    fn poll_metadata(&mut self) {
+        let Some(loader) = &self.metadata_loader else {
+            return;
+        };
+        while let Ok(done) = loader.results.try_recv() {
+            if !self
+                .metadata_pending
+                .get(&done.key)
+                .is_some_and(|t| t.id == done.id)
+            {
+                continue;
+            }
+            let ticket = self.metadata_pending.remove(&done.key).unwrap();
+            match (done.key, done.loaded) {
+                (LoadKey::Project(root), Loaded::Project(discovery)) => {
+                    self.discoveries.insert(root, discovery);
+                }
+                (LoadKey::Package(dir), Loaded::Package(result)) => {
+                    self.packages.insert(
+                        dir,
+                        PackageEntry {
+                            result: result.map(Rc::from),
+                            stamp: ticket.stamp,
+                        },
+                    );
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    pub fn loading_progress(&self, dir: &Path) -> (usize, usize) {
+        self.metadata_pending
+            .get(&LoadKey::Package(dir.to_path_buf()))
+            .map_or((0, 0), |ticket| {
+                (
+                    ticket.progress.checked.load(Ordering::Relaxed),
+                    ticket.progress.total.load(Ordering::Relaxed),
+                )
+            })
+    }
+
+    pub fn cancel_loading(&mut self, root: &Path) {
+        let keys: Vec<_> = self
+            .metadata_pending
+            .keys()
+            .filter(|key| key.path().starts_with(root))
+            .cloned()
+            .collect();
+        for key in keys {
+            let ticket = self.metadata_pending.remove(&key).unwrap();
+            ticket.progress.cancelled.store(true, Ordering::Relaxed);
+            match key {
+                LoadKey::Project(dir) => {
+                    self.discoveries.insert(
+                        dir,
+                        Discovery {
+                            sets: vec![],
+                            problems: vec!["Loading cancelled".into()],
+                        },
+                    );
+                }
+                LoadKey::Package(dir) => {
+                    self.packages.insert(
+                        dir,
+                        PackageEntry {
+                            result: Err("Loading cancelled".into()),
+                            stamp: ticket.stamp,
+                        },
+                    );
+                }
+            }
+        }
     }
 
     /// Forgets what was discovered and loaded below `project_root`, so new or rebuilt packages
     /// are picked up and failed loads (of packages and of textures) are retried.
     pub fn rescan(&mut self, project_root: &Path) {
+        self.cancel_loading(project_root);
         self.discoveries.remove(project_root);
         self.packages
             .retain(|dir, _| !dir.starts_with(project_root));
@@ -202,30 +443,18 @@ impl PackageStore {
         });
     }
 
-    /// Parsed package at `dir`. Failures are cached with their message; a changed `package.json`
-    /// is read again.
-    pub fn package(&mut self, dir: &Path) -> Result<Rc<MaterialPackage>, String> {
-        let stamp = manifest_stamp(dir);
-        let stale = self.packages.get(dir).is_some_and(|e| e.stamp != stamp);
-        if stale {
-            self.packages.remove(dir);
-        }
-        self.packages
-            .entry(dir.to_path_buf())
-            .or_insert_with(|| PackageEntry {
-                result: MaterialPackage::load(dir).map(Rc::new),
-                stamp,
-            })
-            .result
-            .clone()
-    }
-
     /// Drops everything cached below `root` (call when a project is closed).
     pub fn forget_project(&mut self, root: &Path) {
+        self.cancel_loading(root);
         self.discoveries.retain(|dir, _| !dir.starts_with(root));
         self.packages.retain(|dir, _| !dir.starts_with(root));
         self.gpu_textures.retain(|e| !e.key.path.starts_with(root));
         self.pending.retain(|key, _| !key.path.starts_with(root));
+    }
+
+    #[cfg(test)]
+    pub fn metadata_is_pending(&self) -> bool {
+        !self.metadata_pending.is_empty()
     }
 
     /// `(project discoveries, packages, GPU textures)` currently cached.
@@ -398,6 +627,12 @@ impl PackageStore {
     }
 }
 
+impl Drop for LoadTicket {
+    fn drop(&mut self) {
+        self.progress.cancelled.store(true, Ordering::Relaxed);
+    }
+}
+
 enum Lookup {
     Ready(Arc<GpuTexture>),
     Failed(String),
@@ -424,15 +659,93 @@ mod tests {
     use super::*;
     use crate::material_package::test_support::demo_project;
 
+    fn wait_package(store: &mut PackageStore, dir: &Path) -> Result<Rc<MaterialPackage>, String> {
+        let ctx = egui::Context::default();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(result) = store.request_package(&ctx, dir) {
+                return result;
+            }
+            assert!(Instant::now() < deadline, "package load timed out");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn loading_can_be_cancelled_and_old_results_cannot_replace_a_new_request() {
+        let ctx = egui::Context::default();
+        let root = demo_project();
+        let dir = root.join("material_package_v3/warp");
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let loader = MetadataLoader::spawn_with(ctx.clone(), move |key, progress| {
+            if calls.fetch_add(1, Ordering::Relaxed) == 0 {
+                started_tx.send(()).unwrap();
+                release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                return Loaded::Package(Err("old result".into()));
+            }
+            match key {
+                LoadKey::Package(dir) => Loaded::Package(
+                    MaterialPackage::load_with_progress(dir, progress).map(Box::new),
+                ),
+                _ => unreachable!(),
+            }
+        });
+        let mut store = PackageStore {
+            metadata_loader: Some(loader),
+            ..PackageStore::default()
+        };
+        assert!(store.request_package(&ctx, &dir).is_none());
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let progress = store.metadata_pending[&LoadKey::Package(dir.clone())]
+            .progress
+            .clone();
+        store.cancel_loading(&root);
+        assert!(progress.cancelled.load(Ordering::Relaxed));
+        assert_eq!(
+            store.request_package(&ctx, &dir).unwrap().unwrap_err(),
+            "Loading cancelled"
+        );
+        store.forget_project(&root);
+        assert!(store.request_package(&ctx, &dir).is_none());
+        release_tx.send(()).unwrap();
+        assert!(
+            wait_package(&mut store, &dir).is_ok(),
+            "discard the old generation's error"
+        );
+    }
+
+    #[test]
+    fn package_progress_counts_image_checks_and_honours_cancellation() {
+        let dir = demo_project().join("material_package_v3/warp");
+        let progress = LoadProgress::default();
+        MaterialPackage::load_with_progress(&dir, &progress).unwrap();
+        let total = progress.total.load(Ordering::Relaxed);
+        assert!(total > 0);
+        assert_eq!(progress.checked.load(Ordering::Relaxed), total);
+        progress.cancelled.store(true, Ordering::Relaxed);
+        assert_eq!(
+            MaterialPackage::load_with_progress(&dir, &progress).unwrap_err(),
+            "Loading cancelled"
+        );
+    }
+
     #[test]
     fn packages_and_sets_are_cached_and_forgotten_with_their_project() {
         let mut store = PackageStore::default();
         let project = demo_project();
+        let ctx = egui::Context::default();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while store.request_discovery(&ctx, &project) {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert_eq!(store.sets(&project).len(), 1);
         assert!(store.problems(&project).is_empty());
         let dir = project.join("material_package_v3_untiled/warp");
-        let a = store.package(&dir).unwrap();
-        let b = store.package(&dir).unwrap();
+        let a = wait_package(&mut store, &dir).unwrap();
+        let b = wait_package(&mut store, &dir).unwrap();
         assert!(Rc::ptr_eq(&a, &b), "one parsed package per directory");
         assert_eq!(store.counts(), (1, 1, 0));
         store.forget_project(&project);
@@ -450,13 +763,13 @@ mod tests {
         )
         .unwrap();
         let mut store = PackageStore::default();
-        let error = store.package(&dir).err().unwrap();
+        let error = wait_package(&mut store, &dir).err().unwrap();
         assert!(
             error.contains("package.json") && error.contains("atlas"),
             "{error}"
         );
         assert_eq!(
-            store.package(&dir).err().unwrap(),
+            wait_package(&mut store, &dir).err().unwrap(),
             error,
             "the failure is cached"
         );
@@ -465,7 +778,7 @@ mod tests {
         let src = demo_project().join("material_package_v3_untiled/warp");
         copy_dir(&src, &dir);
         store.rescan(&root);
-        assert!(store.package(&dir).is_ok());
+        assert!(wait_package(&mut store, &dir).is_ok());
     }
 
     #[test]
@@ -476,7 +789,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("package.json"), "{}").unwrap();
         let mut store = PackageStore::default();
-        assert!(store.package(&dir).is_err());
+        assert!(wait_package(&mut store, &dir).is_err());
         copy_dir(
             &demo_project().join("material_package_v3_untiled/warp"),
             &dir,
@@ -489,7 +802,7 @@ mod tests {
             .set_modified(later)
             .unwrap();
         assert!(
-            store.package(&dir).is_ok(),
+            wait_package(&mut store, &dir).is_ok(),
             "a newer package.json is read again"
         );
     }

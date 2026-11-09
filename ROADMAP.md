@@ -2,7 +2,6 @@
 
 ## Viewer
 
-- Load packages off the UI thread.
 - Reuse draw buffers and bind groups.
 - Share CPU render workers and caches between tabs.
 - Antialias silhouettes on CPU and GPU.

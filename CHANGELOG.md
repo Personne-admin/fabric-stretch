@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `fabsim validate-package` checks manifests and image files without the viewer.
+- Viewer package loading runs in the background, with progress and cancellation.
 - Fixed the Python sphere fixture and lint/format checks.
 
 ## [0.1.0] - 2026-11-08
