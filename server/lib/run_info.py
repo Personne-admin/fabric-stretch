@@ -71,9 +71,7 @@ def validate_tracks(
     result["frames"] = len(frames)
     result["images"] = len(images)
     if len(frames) != len(images):
-        problems.append(
-            f"{len(frames)} frames in tracks.json but {len(images)} '{role}' images"
-        )
+        problems.append(f"{len(frames)} frames in tracks.json but {len(images)} '{role}' images")
 
     ids = [[p.get("id") for p in f.get("points", [])] for f in frames]
     counts = sorted({len(i) for i in ids})
@@ -92,16 +90,12 @@ def validate_tracks(
     for f in frames:
         for p in f.get("points", []):
             x, y, c = p.get("x"), p.get("y"), p.get("confidence")
-            ok = all(
-                isinstance(v, (int, float)) and math.isfinite(v) for v in (x, y, c)
-            )
+            ok = all(isinstance(v, (int, float)) and math.isfinite(v) for v in (x, y, c))
             if not ok or not 0.0 <= c <= 1.0:
                 bad += 1
 
     if bad:
-        problems.append(
-            f"{bad} point(s) with non-finite coordinates or confidence outside [0, 1]"
-        )
+        problems.append(f"{bad} point(s) with non-finite coordinates or confidence outside [0, 1]")
 
     prov = doc.get("provenance") or {}
     errors = prov.get("reference_errors_px") or {}
@@ -128,9 +122,7 @@ def validate_tracks(
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    res = validate_tracks(
-        args.run, args.tracks, args.role, args.expect_points, args.limit
-    )
+    res = validate_tracks(args.run, args.tracks, args.role, args.expect_points, args.limit)
 
     print(json.dumps(res, indent=2))
 
@@ -156,9 +148,7 @@ def cmd_summary(args: argparse.Namespace) -> int:
             runs.append(entry)
 
     meta = dict(item.split("=", 1) for item in args.meta)
-    counts = {
-        s: sum(r["status"] == s for r in runs) for s in ("ok", "failed", "skipped")
-    }
+    counts = {s: sum(r["status"] == s for r in runs) for s in ("ok", "failed", "skipped")}
 
     doc = {"run_id": args.run_id, **meta, "counts": counts, "runs": runs}
     with open(args.out, "w") as fh:
@@ -175,9 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("inputs", help="write the list of files to upload for one role")
     p.add_argument("--run", required=True)
     p.add_argument("--role", required=True)
-    p.add_argument(
-        "--out", required=True, help="file receiving one relative path per line"
-    )
+    p.add_argument("--out", required=True, help="file receiving one relative path per line")
     p.set_defaults(func=cmd_inputs)
 
     p = sub.add_parser("validate", help="check tracks.json against its run")
@@ -185,17 +173,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tracks", required=True)
     p.add_argument("--role", default="diffuse")
     p.add_argument("--expect-points", type=int)
-    p.add_argument(
-        "--limit", type=float, help="reference error limit in px (default: the file's)"
-    )
+    p.add_argument("--limit", type=float, help="reference error limit in px (default: the file's)")
     p.set_defaults(func=cmd_validate)
 
     p = sub.add_parser("summary", help="write the dataset summary JSON")
     p.add_argument("--out", required=True)
     p.add_argument("--run-id", required=True)
-    p.add_argument(
-        "--entries", required=True, help="TSV: run, status, detail, seconds, validation"
-    )
+    p.add_argument("--entries", required=True, help="TSV: run, status, detail, seconds, validation")
     p.add_argument("--meta", nargs="*", default=[], help="extra KEY=VALUE pairs")
     p.set_defaults(func=cmd_summary)
 

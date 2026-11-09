@@ -32,15 +32,11 @@ class ColorCalibrationDialog(tk.Toplevel):
         bar.pack(fill="x")
         ttk.Label(bar, text="Image type:").pack(side="left")
         for label, value in (("Diffuse", "diffuse"), ("Point light", "point_light")):
-            ttk.Radiobutton(
-                bar, text=label, variable=self.role, value=value, command=self._refresh
-            ).pack(side="left", padx=5)
-        ttk.Button(bar, text="Open chart image...", command=self._open).pack(
-            side="left", padx=12
-        )
-        ttk.Button(bar, text="Use camera frame", command=self._capture).pack(
-            side="left"
-        )
+            ttk.Radiobutton(bar, text=label, variable=self.role, value=value, command=self._refresh).pack(
+                side="left", padx=5
+            )
+        ttk.Button(bar, text="Open chart image...", command=self._open).pack(side="left", padx=12)
+        ttk.Button(bar, text="Use camera frame", command=self._capture).pack(side="left")
         ttk.Label(bar, text="Exposure (ms):").pack(side="left", padx=(18, 3))
         ttk.Entry(bar, textvariable=self.exposure, width=8).pack(side="left")
         leds = ttk.Frame(self, padding=(8, 0, 8, 8))
@@ -52,32 +48,20 @@ class ColorCalibrationDialog(tk.Toplevel):
                 text=f"LED {index + 1} (bit {bit})",
                 command=lambda i=index, b=bit: self._led_on(i, b),
             ).pack(side="left", padx=4)
-        ttk.Button(leds, text="Diffuse light", command=self._diffuse_on).pack(
-            side="left", padx=(12, 0)
-        )
-        ttk.Button(leds, text="All LEDs off", command=self._leds_off).pack(
-            side="left", padx=12
-        )
+        ttk.Button(leds, text="Diffuse light", command=self._diffuse_on).pack(side="left", padx=(12, 0))
+        ttk.Button(leds, text="All LEDs off", command=self._leds_off).pack(side="left", padx=12)
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.canvas = tk.Canvas(self, bg="#23262b", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True, padx=8)
         self.canvas.bind("<Button-1>", self._click)
         self.canvas.bind("<Configure>", lambda _event: self._refresh())
-        ttk.Label(self, textvariable=self.status, wraplength=950).pack(
-            fill="x", padx=10, pady=5
-        )
+        ttk.Label(self, textvariable=self.status, wraplength=950).pack(fill="x", padx=10, pady=5)
         bottom = ttk.Frame(self, padding=8)
         bottom.pack(fill="x")
         ttk.Button(bottom, text="Reset corners", command=self._reset).pack(side="left")
-        ttk.Button(bottom, text="Fit this image", command=self._fit).pack(
-            side="left", padx=8
-        )
-        ttk.Button(bottom, text="Preview correction", command=self._preview).pack(
-            side="left"
-        )
-        ttk.Button(bottom, text="Save both models...", command=self._save).pack(
-            side="right"
-        )
+        ttk.Button(bottom, text="Fit this image", command=self._fit).pack(side="left", padx=8)
+        ttk.Button(bottom, text="Preview correction", command=self._preview).pack(side="left")
+        ttk.Button(bottom, text="Save both models...", command=self._save).pack(side="right")
 
     def _key(self):
         # Each point light LED gets its own image slot; diffuse has one.
@@ -108,9 +92,7 @@ class ColorCalibrationDialog(tk.Toplevel):
         self.led.set(index)
         self._refresh()
         if not self.app.ctrl.connected:
-            messagebox.showwarning(
-                "Not connected", "Connect to the controller first.", parent=self
-            )
+            messagebox.showwarning("Not connected", "Connect to the controller first.", parent=self)
 
             return
         self.app.ctrl.set_power(self.app.power_var.get())
@@ -121,9 +103,7 @@ class ColorCalibrationDialog(tk.Toplevel):
         self._refresh()
         mask = int(self.app.led_config.get("diffuse_mask", 0))
         if not self.app.ctrl.connected:
-            messagebox.showwarning(
-                "Not connected", "Connect to the controller first.", parent=self
-            )
+            messagebox.showwarning("Not connected", "Connect to the controller first.", parent=self)
         elif mask == 0:
             messagebox.showwarning(
                 "No diffuse mask",
@@ -161,9 +141,7 @@ class ColorCalibrationDialog(tk.Toplevel):
     def _capture(self):
         cam = self.app.cam
         if not cam.is_open:
-            messagebox.showwarning(
-                "Camera required", "Open the camera first.", parent=self
-            )
+            messagebox.showwarning("Camera required", "Open the camera first.", parent=self)
 
             return
         try:
@@ -171,9 +149,7 @@ class ColorCalibrationDialog(tk.Toplevel):
             if requested <= 0:
                 raise ValueError
         except (ValueError, tk.TclError):
-            messagebox.showerror(
-                "Exposure", "Exposure must be a positive number.", parent=self
-            )
+            messagebox.showerror("Exposure", "Exposure must be a positive number.", parent=self)
 
             return
         key, role = self._key(), self.role.get()
@@ -191,9 +167,7 @@ class ColorCalibrationDialog(tk.Toplevel):
                 return
             actual, frame = result
             if frame is None:
-                messagebox.showerror(
-                    "Capture failed", "The camera returned no frame.", parent=self
-                )
+                messagebox.showerror("Capture failed", "The camera returned no frame.", parent=self)
             elif abs(actual - requested) > EXPOSURE_TOLERANCE * requested:
                 messagebox.showerror(
                     "Exposure not reachable",
@@ -219,49 +193,31 @@ class ColorCalibrationDialog(tk.Toplevel):
         key = self._key()
         if key not in self.images:
             if role == "point_light":
-                done = [
-                    str(i + 1)
-                    for i, k in enumerate(self._point_keys())
-                    if k in self.images
-                ]
+                done = [str(i + 1) for i, k in enumerate(self._point_keys()) if k in self.images]
                 self.status.set(
                     f"{self._label()}: press its LED button, then open or capture its chart image. "
                     f"Done: LEDs {', '.join(done) or 'none'}."
                 )
             else:
-                self.status.set(
-                    f"{role}: open or capture a 6 column x 5 row chart image."
-                )
+                self.status.set(f"{role}: open or capture a 6 column x 5 row chart image.")
 
             return
         array, name = self.images[key]
         height, width = array.shape[:2]
-        cw, ch = max(self.canvas.winfo_width(), 100), max(
-            self.canvas.winfo_height(), 100
-        )
+        cw, ch = max(self.canvas.winfo_width(), 100), max(self.canvas.winfo_height(), 100)
         scale = min(cw / width, ch / height)
         self.scale = scale
         self.offset = ((cw - width * scale) / 2, (ch - height * scale) / 2)
-        preview = Image.fromarray(array).resize(
-            (max(1, round(width * scale)), max(1, round(height * scale)))
-        )
+        preview = Image.fromarray(array).resize((max(1, round(width * scale)), max(1, round(height * scale))))
         self.photo = ImageTk.PhotoImage(preview)
         self.canvas.create_image(*self.offset, image=self.photo, anchor="nw")
         pts = self.points.get(key, [])
         for index, (x, y) in enumerate(pts):
             px, py = self.offset[0] + x * scale, self.offset[1] + y * scale
-            self.canvas.create_oval(
-                px - 5, py - 5, px + 5, py + 5, fill="#ffce55", outline="black"
-            )
-            self.canvas.create_text(
-                px + 12, py - 12, text=str(index + 1), fill="white", anchor="w"
-            )
+            self.canvas.create_oval(px - 5, py - 5, px + 5, py + 5, fill="#ffce55", outline="black")
+            self.canvas.create_text(px + 12, py - 12, text=str(index + 1), fill="white", anchor="w")
         if len(pts) == 4:
-            coords = [
-                v
-                for x, y in pts
-                for v in (self.offset[0] + x * scale, self.offset[1] + y * scale)
-            ]
+            coords = [v for x, y in pts for v in (self.offset[0] + x * scale, self.offset[1] + y * scale)]
             self.canvas.create_polygon(*coords, fill="", outline="#ffce55", width=2)
         progress = ""
         if role == "point_light":
@@ -281,9 +237,7 @@ class ColorCalibrationDialog(tk.Toplevel):
         if key not in self.images or len(self.points[key]) >= 4:
             return
         array = self.images[key][0]
-        x, y = (event.x - self.offset[0]) / self.scale, (
-            event.y - self.offset[1]
-        ) / self.scale
+        x, y = (event.x - self.offset[0]) / self.scale, (event.y - self.offset[1]) / self.scale
         if 0 <= x < array.shape[1] and 0 <= y < array.shape[0]:
             self.points[key].append((x, y))
             self.models.pop(self.role.get(), None)
@@ -324,9 +278,7 @@ class ColorCalibrationDialog(tk.Toplevel):
                     or np.any(xx >= image.shape[1])
                     or np.any(yy >= image.shape[0])
                 ):
-                    raise ValueError(
-                        "Chart patch falls outside the image. Check the corners."
-                    )
+                    raise ValueError("Chart patch falls outside the image. Check the corners.")
                 result.append(np.median(image[yy, xx].reshape(-1, 3), axis=0))
 
         return np.asarray(result)
@@ -340,9 +292,7 @@ class ColorCalibrationDialog(tk.Toplevel):
             keys = ["diffuse"] if role == "diffuse" else self._point_keys()
             missing = [str(i + 1) for i, k in enumerate(keys) if k not in self.images]
             if missing:
-                raise ValueError(
-                    f"Point light LED {', '.join(missing)} has no chart image yet."
-                )
+                raise ValueError(f"Point light LED {', '.join(missing)} has no chart image yet.")
             patches = np.vstack([self._patches(k) for k in keys])
             # file names only: the bundle is copied into every run folder
             sources = basenames("; ".join(self.images[k][1] for k in keys))
@@ -367,10 +317,7 @@ class ColorCalibrationDialog(tk.Toplevel):
             source.thumbnail((700, 850))
             array = np.asarray(source)
             corrected = (
-                apply_model(
-                    array, self.models[role], exposure_ms=self.models[role].exposure_ms
-                )
-                * 255
+                apply_model(array, self.models[role], exposure_ms=self.models[role].exposure_ms) * 255
             ).astype("uint8")
             window = tk.Toplevel(self)
             window.title(f"{self._label()} · before / after")
@@ -406,6 +353,4 @@ class ColorCalibrationDialog(tk.Toplevel):
             )
             if hasattr(self.app, "load_color_calibration"):
                 self.app.load_color_calibration(Path(name))
-            self.status.set(
-                f"Saved calibration to {name}. Measurements now correct images on save."
-            )
+            self.status.set(f"Saved calibration to {name}. Measurements now correct images on save.")

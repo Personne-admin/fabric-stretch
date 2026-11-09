@@ -71,9 +71,7 @@ def test_packaged_led_config_is_what_photometric_uses():
 
 
 def test_user_file_wins_and_corrupt_user_file_is_an_error(tmp_path):
-    config.save_led_config(
-        {"pol_a_bits": [0, 1, 2], "light_azimuths_deg": [1, 2, 3]}, tmp_path
-    )
+    config.save_led_config({"pol_a_bits": [0, 1, 2], "light_azimuths_deg": [1, 2, 3]}, tmp_path)
     assert config.load_led_config(tmp_path)["pol_a_bits"] == [0, 1, 2]
     (tmp_path / config.LED_CONFIG_FILE).write_text("{not json")
     with pytest.raises(config.ConfigError):
@@ -86,9 +84,7 @@ def test_seed_defaults_is_explicit_and_does_not_overwrite(tmp_path):
     (tmp_path / config.PRESETS_FILE).write_text("[]")
     assert config.seed_defaults(tmp_path) == []
     assert (tmp_path / config.PRESETS_FILE).read_text() == "[]"
-    assert len(config.seed_defaults(tmp_path, overwrite=True)) == len(
-        config.DEFAULT_FILES
-    )
+    assert len(config.seed_defaults(tmp_path, overwrite=True)) == len(config.DEFAULT_FILES)
 
 
 def test_merge_led_config_keeps_geometry_when_set_a_is_unchanged():
@@ -122,10 +118,7 @@ def test_merge_led_config_drops_azimuths_only_if_set_a_changed():
 def test_state_round_trip_and_color_calibration_lookup(tmp_path):
     assert config.default_color_calibration_path(tmp_path) is None
     (tmp_path / config.COLOR_CALIBRATION_FILE).write_text("{}")
-    assert (
-        config.default_color_calibration_path(tmp_path)
-        == tmp_path / config.COLOR_CALIBRATION_FILE
-    )
+    assert config.default_color_calibration_path(tmp_path) == tmp_path / config.COLOR_CALIBRATION_FILE
     elsewhere = tmp_path / "other.json"
     elsewhere.write_text("{}")
     config.update_state(tmp_path, color_calibration=str(elsewhere))
@@ -142,9 +135,7 @@ def test_presets_round_trip_into_settings(tmp_path):
         settings = MeasurementSettings.from_preset(preset)
         settings.validate()
         assert settings.step_size >= 0
-    settings = MeasurementSettings(
-        count=5, step_size=120, motion_mode="release", relax_indices=[3, 1]
-    )
+    settings = MeasurementSettings(count=5, step_size=120, motion_mode="release", relax_indices=[3, 1])
     path = config.save_presets([settings.to_preset("mine")], tmp_path)
     assert path == tmp_path / "presets.json"
     [stored] = config.load_presets(tmp_path)
@@ -164,17 +155,12 @@ def test_legacy_signed_step_size_preset():
 
 
 def test_settings_validation_lists_all_problems():
-    bad = MeasurementSettings(
-        count=0, led_power=300, cam_exposure_ms=0, sample_id="a/b"
-    )
+    bad = MeasurementSettings(count=0, led_power=300, cam_exposure_ms=0, sample_id="a/b")
     with pytest.raises(ValueError) as info:
         bad.validate()
     message = str(info.value)
     assert (
-        "Captures" in message
-        and "LED power" in message
-        and "exposure" in message
-        and "Sample ID" in message
+        "Captures" in message and "LED power" in message and "exposure" in message and "Sample ID" in message
     )
 
 
@@ -188,9 +174,7 @@ def test_setup_logging_writes_a_rotating_file(tmp_path):
             handler.flush()
         assert path == tmp_path / "logs" / config.LOG_FILE
         assert "hello rig" in path.read_text()
-        config.setup_logging(
-            tmp_path / "logs"
-        )  # calling twice does not duplicate handlers
+        config.setup_logging(tmp_path / "logs")  # calling twice does not duplicate handlers
         assert sum(getattr(h, "_fabsim_rig", False) for h in root.handlers) == 2
     finally:
         for handler in list(root.handlers):
@@ -205,21 +189,11 @@ def test_setup_logging_writes_a_rotating_file(tmp_path):
 def test_preset_without_capture_setup_keeps_the_current_one():
     from fabsim.rig.settings import MeasurementSettings
 
-    current = MeasurementSettings(
-        capture_mode="sequential", polarization=True, release_steps=7
-    )
+    current = MeasurementSettings(capture_mode="sequential", polarization=True, release_steps=7)
     legacy = MeasurementSettings.from_preset({"name": "old", "count": 4}, current)
     assert (legacy.count, legacy.capture_mode, legacy.polarization, legacy.release_steps) == (
         4, "sequential", True, 7,
     )  # fmt: skip
-    explicit = MeasurementSettings.from_preset(
-        {"capture_mode": "rgb", "polarization": False}, current
-    )
-    assert (
-        explicit.capture_mode == "rgb"
-        and not explicit.polarization
-        and explicit.release_steps == 7
-    )
-    assert (
-        MeasurementSettings.from_preset({"count": 4}).capture_mode == "rgb"
-    )  # no current: defaults
+    explicit = MeasurementSettings.from_preset({"capture_mode": "rgb", "polarization": False}, current)
+    assert explicit.capture_mode == "rgb" and not explicit.polarization and explicit.release_steps == 7
+    assert MeasurementSettings.from_preset({"count": 4}).capture_mode == "rgb"  # no current: defaults

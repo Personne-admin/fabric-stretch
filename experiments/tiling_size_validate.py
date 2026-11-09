@@ -14,11 +14,7 @@ from fabsim.tiling import seam_shift_px
 
 def load_candidates(path: Path) -> list[dict]:
     text = path.read_text().strip()
-    records = (
-        json.loads(text)
-        if text.startswith("[")
-        else [json.loads(line) for line in text.splitlines()]
-    )
+    records = json.loads(text) if text.startswith("[") else [json.loads(line) for line in text.splitlines()]
     for i, record in enumerate(records):
         record.setdefault("name", f"candidate_{i:03d}")
 
@@ -50,14 +46,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.only is not None:
         candidates = [candidates[i] for i in args.only if 0 <= i < len(candidates)]
     p = json.loads((pkg / "package.json").read_text())
-    states = [
-        (b, i, s)
-        for b in ("loading", "release")
-        for i, s in enumerate(p["branches"][b])
-    ]
-    textures = [
-        np.asarray(Image.open(pkg / s["texture"]).convert("RGB")) for _, _, s in states
-    ]
+    states = [(b, i, s) for b in ("loading", "release") for i, s in enumerate(p["branches"][b])]
+    textures = [np.asarray(Image.open(pkg / s["texture"]).convert("RGB")) for _, _, s in states]
     n_load = len(p["branches"]["loading"])
     picks = {}
     for b, off in (("loading", 0), ("release", n_load)):

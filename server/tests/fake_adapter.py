@@ -19,9 +19,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args, rest = parser.parse_known_args()
 
-    if os.path.basename(args.run_dir.rstrip("/")) == os.environ.get(
-        "FAKE_ADAPTER_FAIL"
-    ):
+    if os.path.basename(args.run_dir.rstrip("/")) == os.environ.get("FAKE_ADAPTER_FAIL"):
         print("error: simulated failure", file=sys.stderr)
 
         return 1
@@ -53,9 +51,7 @@ def main() -> int:
         "frames": [
             {
                 "frame_id": i,
-                "points": [
-                    {"id": p, "x": 1.0, "y": 2.0, "confidence": 0.9} for p in points
-                ],
+                "points": [{"id": p, "x": 1.0, "y": 2.0, "confidence": 0.9} for p in points],
             }
             for i in ids
         ],

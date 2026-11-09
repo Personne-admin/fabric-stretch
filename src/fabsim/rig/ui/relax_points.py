@@ -10,9 +10,7 @@ from .widgets import ScrollableFrame
 class RelaxPointsDialog:
     COLUMNS = 5
 
-    def __init__(
-        self, app, total: int, selected: set[int], on_ok: Callable[[set[int]], None]
-    ):
+    def __init__(self, app, total: int, selected: set[int], on_ok: Callable[[set[int]], None]):
         dlg = tk.Toplevel(app)
         self.dlg = dlg
         dlg.title("Select Relaxation Points")
@@ -35,15 +33,11 @@ class RelaxPointsDialog:
 
         bottom = ttk.Frame(dlg, padding=4)
         bottom.pack(fill="x", side="bottom")
-        ttk.Button(
-            bottom, text="All", width=6, command=lambda: self._set_all(True)
-        ).pack(side="left", padx=2)
-        ttk.Button(
-            bottom, text="None", width=6, command=lambda: self._set_all(False)
-        ).pack(side="left", padx=2)
-        ttk.Button(bottom, text="OK", command=lambda: self._ok(on_ok)).pack(
-            side="right", padx=4
+        ttk.Button(bottom, text="All", width=6, command=lambda: self._set_all(True)).pack(side="left", padx=2)
+        ttk.Button(bottom, text="None", width=6, command=lambda: self._set_all(False)).pack(
+            side="left", padx=2
         )
+        ttk.Button(bottom, text="OK", command=lambda: self._ok(on_ok)).pack(side="right", padx=4)
 
     def _set_all(self, value: bool):
         for var in self.vars.values():

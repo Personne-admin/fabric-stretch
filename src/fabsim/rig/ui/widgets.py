@@ -14,7 +14,6 @@ log = logging.getLogger(__name__)
 
 
 class ThreadBridge:
-
     EVENT_POLL_MS = 50
 
     def _init_bridge(self) -> None:
@@ -52,7 +51,6 @@ class ThreadBridge:
 
 
 class ImageCanvas(tk.Canvas):
-
     def __init__(
         self,
         master,
@@ -127,9 +125,7 @@ class ImageCanvas(tk.Canvas):
 
         return ox + point[0] / self._scale[0], oy + point[1] / self._scale[1]
 
-    def canvas_to_image(
-        self, x: float, y: float, clamp: bool = False
-    ) -> tuple[float, float] | None:
+    def canvas_to_image(self, x: float, y: float, clamp: bool = False) -> tuple[float, float] | None:
         ox, oy = self._offset
         nw, nh = self._size
         if clamp:
@@ -162,16 +158,11 @@ class ImageCanvas(tk.Canvas):
         a = self.canvas_to_image(x0, y0, clamp=True)
         b = self.canvas_to_image(event.x, event.y, clamp=True)
         w, h = abs(b[0] - a[0]), abs(b[1] - a[1])
-        self.roi = (
-            None
-            if w < 4 or h < 4
-            else (int(min(a[0], b[0])), int(min(a[1], b[1])), int(w), int(h))
-        )
+        self.roi = None if w < 4 or h < 4 else (int(min(a[0], b[0])), int(min(a[1], b[1])), int(w), int(h))
         self._render()
 
 
 class ScrollableFrame(ttk.Frame):
-
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
         self._canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
@@ -182,15 +173,11 @@ class ScrollableFrame(ttk.Frame):
             lambda _e: self._canvas.configure(scrollregion=self._canvas.bbox("all")),
         )
         window = self._canvas.create_window((0, 0), window=self.body, anchor="nw")
-        self._canvas.bind(
-            "<Configure>", lambda e: self._canvas.itemconfig(window, width=e.width)
-        )
+        self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfig(window, width=e.width))
         self._canvas.configure(yscrollcommand=scrollbar.set)
         self._canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        self.bind(
-            "<Enter>", lambda _e: self._canvas.bind_all("<MouseWheel>", self._on_wheel)
-        )
+        self.bind("<Enter>", lambda _e: self._canvas.bind_all("<MouseWheel>", self._on_wheel))
         self.bind("<Leave>", lambda _e: self._canvas.unbind_all("<MouseWheel>"))
 
     def _on_wheel(self, event) -> None:

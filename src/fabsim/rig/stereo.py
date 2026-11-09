@@ -29,9 +29,7 @@ class PhotometricStereoTab:
         self._progress_visible = False
 
         self.run_dir_var = tk.StringVar()
-        self.status_var = tk.StringVar(
-            value="No run folder loaded. Pick a folder containing frames.json."
-        )
+        self.status_var = tk.StringVar(value="No run folder loaded. Pick a folder containing frames.json.")
         self.diffuse_prior_var = tk.BooleanVar(value=False)
         self.polarization_set_var = tk.StringVar(value="B")
         self.gamma_var = tk.DoubleVar(value=1.0)
@@ -67,16 +65,14 @@ class PhotometricStereoTab:
     def _build_ui(self):
         top = ttk.Frame(self.root)
         top.pack(fill="x", padx=10, pady=6)
-        ttk.Button(top, text="Pick Run Folder", command=self._pick_run_folder).pack(
-            side="left"
-        )
+        ttk.Button(top, text="Pick Run Folder", command=self._pick_run_folder).pack(side="left")
         ttk.Entry(top, textvariable=self.run_dir_var, state="readonly").pack(
             side="left", fill="x", expand=True, padx=6
         )
 
-        ttk.Label(
-            self.root, textvariable=self.status_var, font=("", 10), foreground="#444"
-        ).pack(fill="x", padx=10, pady=(0, 4))
+        ttk.Label(self.root, textvariable=self.status_var, font=("", 10), foreground="#444").pack(
+            fill="x", padx=10, pady=(0, 4)
+        )
         ttk.Separator(self.root, orient="horizontal").pack(fill="x", padx=10, pady=2)
 
         body = ttk.Frame(self.root)
@@ -88,15 +84,9 @@ class PhotometricStereoTab:
 
         wf = ttk.LabelFrame(left, text="Solver options", padding=6)
         wf.pack(fill="x", pady=(0, 4))
-        ttk.Checkbutton(
-            wf, text="Use diffuse as albedo", variable=self.diffuse_prior_var
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            wf, text="Estimate LED gains", variable=self.estimate_gains_var
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            wf, text="Smooth normals (bilateral)", variable=self.bilateral_var
-        ).pack(anchor="w")
+        ttk.Checkbutton(wf, text="Use diffuse as albedo", variable=self.diffuse_prior_var).pack(anchor="w")
+        ttk.Checkbutton(wf, text="Estimate LED gains", variable=self.estimate_gains_var).pack(anchor="w")
+        ttk.Checkbutton(wf, text="Smooth normals (bilateral)", variable=self.bilateral_var).pack(anchor="w")
         pol_row = ttk.Frame(wf)
         pol_row.pack(fill="x", pady=(4, 0))
         ttk.Label(pol_row, text="Polarization set:").pack(side="left")
@@ -115,41 +105,25 @@ class PhotometricStereoTab:
         r1.pack(fill="x")
         ttk.Label(r1, text="Gamma:").pack(side="left")
         ttk.Entry(r1, textvariable=self.gamma_var, width=8).pack(side="left", padx=4)
-        ttk.Checkbutton(cf, text="Ambient subtract", variable=self.ambient_var).pack(
+        ttk.Checkbutton(cf, text="Ambient subtract", variable=self.ambient_var).pack(anchor="w", pady=(4, 0))
+        ttk.Button(cf, text="Clear ROI", command=lambda: self.canvas_in.clear_roi()).pack(
             anchor="w", pady=(4, 0)
         )
-        ttk.Button(
-            cf, text="Clear ROI", command=lambda: self.canvas_in.clear_roi()
-        ).pack(anchor="w", pady=(4, 0))
 
         bf = ttk.LabelFrame(left, text="Batch / video", padding=6)
         bf.pack(fill="x", pady=(0, 4))
-        ttk.Button(bf, text="Process All Frames", command=self._process_all).pack(
-            fill="x", pady=2
-        )
-        ttk.Button(bf, text="Make Video", command=self._make_video).pack(
-            fill="x", pady=2
-        )
+        ttk.Button(bf, text="Process All Frames", command=self._process_all).pack(fill="x", pady=2)
+        ttk.Button(bf, text="Make Video", command=self._make_video).pack(fill="x", pady=2)
         ttk.Separator(bf, orient="horizontal").pack(fill="x", pady=4)
         ttk.Label(bf, text="Video tracks:").pack(anchor="w")
-        ttk.Checkbutton(bf, text="Albedo", variable=self.video_albedo_var).pack(
-            anchor="w"
-        )
-        ttk.Checkbutton(bf, text="Normals", variable=self.video_normals_var).pack(
-            anchor="w"
-        )
-        ttk.Checkbutton(
-            bf, text="Original (diffuse/rgb)", variable=self.video_orig_var
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            bf, text="Skip relaxation holds", variable=self.video_skip_relax_var
-        ).pack(anchor="w")
+        ttk.Checkbutton(bf, text="Albedo", variable=self.video_albedo_var).pack(anchor="w")
+        ttk.Checkbutton(bf, text="Normals", variable=self.video_normals_var).pack(anchor="w")
+        ttk.Checkbutton(bf, text="Original (diffuse/rgb)", variable=self.video_orig_var).pack(anchor="w")
+        ttk.Checkbutton(bf, text="Skip relaxation holds", variable=self.video_skip_relax_var).pack(anchor="w")
         fr = ttk.Frame(bf)
         fr.pack(fill="x", pady=(4, 0))
         ttk.Label(fr, text="FPS:").pack(side="left")
-        ttk.Spinbox(fr, from_=1, to=60, textvariable=self.fps_var, width=5).pack(
-            side="left", padx=4
-        )
+        ttk.Spinbox(fr, from_=1, to=60, textvariable=self.fps_var, width=5).pack(side="left", padx=4)
 
         right = ttk.Frame(body)
         right.pack(side="left", fill="both", expand=True, padx=(4, 10), pady=6)
@@ -162,9 +136,7 @@ class PhotometricStereoTab:
         )
         self.frame_combo.pack(side="left", padx=4)
         self.frame_combo.bind("<<ComboboxSelected>>", lambda _e: self._load_preview())
-        ttk.Button(fs, text="Preview", command=self._preview_current).pack(
-            side="left", padx=8
-        )
+        ttk.Button(fs, text="Preview", command=self._preview_current).pack(side="left", padx=8)
         self.lbl_frame_meta = ttk.Label(fs, text="")
         self.lbl_frame_meta.pack(side="left", padx=4)
 
@@ -186,26 +158,16 @@ class PhotometricStereoTab:
         self.canvas_nrm.pack(fill="both", expand=True)
 
         self._prog_frame = ttk.Frame(self.root)
-        ttk.Label(self._prog_frame, textvariable=self.progress_text_var).pack(
+        ttk.Label(self._prog_frame, textvariable=self.progress_text_var).pack(side="left", padx=4)
+        ttk.Progressbar(self._prog_frame, variable=self.progress_var, maximum=100.0, length=260).pack(
             side="left", padx=4
         )
-        ttk.Progressbar(
-            self._prog_frame, variable=self.progress_var, maximum=100.0, length=260
-        ).pack(side="left", padx=4)
-        self._prog_cancel = ttk.Button(
-            self._prog_frame, text="Cancel", command=self._do_cancel
-        )
+        self._prog_cancel = ttk.Button(self._prog_frame, text="Cancel", command=self._do_cancel)
         self._prog_cancel.pack(side="left", padx=4)
 
     def _pick_run_folder(self):
-        initial = (
-            str(self.app.project_dir)
-            if getattr(self.app, "project_dir", None)
-            else str(Path.home())
-        )
-        folder = filedialog.askdirectory(
-            initialdir=initial, title="Pick a run folder containing frames.json"
-        )
+        initial = str(self.app.project_dir) if getattr(self.app, "project_dir", None) else str(Path.home())
+        folder = filedialog.askdirectory(initialdir=initial, title="Pick a run folder containing frames.json")
         if folder:
             self._load_run_folder(Path(folder))
 
@@ -213,9 +175,7 @@ class PhotometricStereoTab:
         try:
             run = RunData(folder)
         except FileNotFoundError:
-            messagebox.showerror(
-                "Not a run folder", f"frames.json not found in:\n{folder}"
-            )
+            messagebox.showerror("Not a run folder", f"frames.json not found in:\n{folder}")
 
             return
         except (OSError, ValueError) as exc:
@@ -241,9 +201,7 @@ class PhotometricStereoTab:
             f"[PS] light: {run.light.source}, azimuths {run.light.azimuths_deg}, "
             f"elevation {run.light.elevation_deg}"
         )
-        self.cmb_pol.config(
-            state="readonly" if run.caps.get("has_polarization") else "disabled"
-        )
+        self.cmb_pol.config(state="readonly" if run.caps.get("has_polarization") else "disabled")
         n = run.caps.get("frame_count", 0)
         self.frame_combo["values"] = [str(i) for i in range(n)]
         if n > 0:
@@ -258,9 +216,7 @@ class PhotometricStereoTab:
 
     def _refresh_status(self):
         if self.run is None:
-            self.status_var.set(
-                "No run folder loaded. Pick a folder containing frames.json."
-            )
+            self.status_var.set("No run folder loaded. Pick a folder containing frames.json.")
 
             return
         caps = self.run.caps
@@ -284,9 +240,7 @@ class PhotometricStereoTab:
 
     def _input_preview(self, idx: int) -> tuple[np.ndarray | None, str]:
         run = self.run
-        keys = ["image_diffuse", "image_rgb"] + sorted(
-            k for k in run.frames[idx] if k.startswith("image_")
-        )
+        keys = ["image_diffuse", "image_rgb"] + sorted(k for k in run.frames[idx] if k.startswith("image_"))
         for key in keys:
             image = run.read_bgr(idx, key)
             if image is not None:
@@ -328,9 +282,7 @@ class PhotometricStereoTab:
 
             return (
                 ps_process.albedo_preview_u8(result.albedo_rgb),
-                ps_process.normals_preview_u8(
-                    result.normals, options.bilateral_normals
-                ),
+                ps_process.normals_preview_u8(result.normals, options.bilateral_normals),
                 result.gains,
             )
 
@@ -406,9 +358,7 @@ class PhotometricStereoTab:
                     )
                     cv2.imwrite(
                         str(nrm_path),
-                        ps_process.normals_preview_u8(
-                            result.normals, options.bilateral_normals
-                        )[:, :, ::-1],
+                        ps_process.normals_preview_u8(result.normals, options.bilateral_normals)[:, :, ::-1],
                     )
                     results.append(
                         {
@@ -430,12 +380,8 @@ class PhotometricStereoTab:
                 )
 
             try:
-                data = ps_process.manifest(
-                    run, options, gains if gains is not None else np.ones(3), results
-                )
-                (out_dir / "ps_manifest.json").write_text(
-                    json.dumps(data, indent=2) + "\n", encoding="utf-8"
-                )
+                data = ps_process.manifest(run, options, gains if gains is not None else np.ones(3), results)
+                (out_dir / "ps_manifest.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             except Exception as exc:
                 self._log(f"[PS] manifest write failed: {exc}")
             post(self._batch_done, len(results), errors, out_dir, gains)
@@ -446,9 +392,7 @@ class PhotometricStereoTab:
         self._gains = gains
         self._hide_progress()
         self._cancel_event = None
-        messagebox.showinfo(
-            "PS", f"Batch done.\nProcessed: {processed}\nErrors: {errors}\n{out_dir}"
-        )
+        messagebox.showinfo("PS", f"Batch done.\nProcessed: {processed}\nErrors: {errors}\n{out_dir}")
 
     def _make_video(self):
         if self.run is None:
@@ -478,13 +422,11 @@ class PhotometricStereoTab:
         sets: dict[str, list[Path]] = {}
         if want_alb:
             sets["albedo"] = [
-                out_dir / f"img_{f.get('frame_id', i):04d}_albedo.png"
-                for i, f in enumerate(frames)
+                out_dir / f"img_{f.get('frame_id', i):04d}_albedo.png" for i, f in enumerate(frames)
             ]
         if want_nrm:
             sets["normals"] = [
-                out_dir / f"img_{f.get('frame_id', i):04d}_normals.png"
-                for i, f in enumerate(frames)
+                out_dir / f"img_{f.get('frame_id', i):04d}_normals.png" for i, f in enumerate(frames)
             ]
         if want_org:
             keys = run.caps.get("all_image_keys", [])
@@ -493,21 +435,13 @@ class PhotometricStereoTab:
                 keys[0] if keys else None,
             )
             if org_key:
-                sets["original"] = [
-                    run.run_dir / "images" / f[org_key]
-                    for f in frames
-                    if f.get(org_key)
-                ]
-        sets = {
-            label: [p for p in paths if p.exists()] for label, paths in sets.items()
-        }
+                sets["original"] = [run.run_dir / "images" / f[org_key] for f in frames if f.get(org_key)]
+        sets = {label: [p for p in paths if p.exists()] for label, paths in sets.items()}
         sets = {label: paths for label, paths in sets.items() if paths}
 
         total = sum(len(v) for v in sets.values())
         if total == 0:
-            messagebox.showerror(
-                "PS", "No frames available. Run 'Process All' first for albedo/normals."
-            )
+            messagebox.showerror("PS", "No frames available. Run 'Process All' first for albedo/normals.")
 
             return
 
@@ -583,7 +517,6 @@ class PhotometricStereoTab:
 
 
 class _StandaloneApp(ThreadBridge, tk.Tk):
-
     project_dir: Path | None = None
 
     def __init__(self, run_folder: Path | None = None):
@@ -600,12 +533,8 @@ class _StandaloneApp(ThreadBridge, tk.Tk):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="fabsim stereo", description="Photometric stereo GUI for rig runs"
-    )
-    parser.add_argument(
-        "run", nargs="?", type=Path, help="run folder (with frames.json) to load"
-    )
+    parser = argparse.ArgumentParser(prog="fabsim stereo", description="Photometric stereo GUI for rig runs")
+    parser.add_argument("run", nargs="?", type=Path, help="run folder (with frames.json) to load")
     args = parser.parse_args(argv)
     _StandaloneApp(args.run).mainloop()
 

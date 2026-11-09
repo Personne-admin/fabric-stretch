@@ -12,9 +12,7 @@ from fabsim import tiling
 def solved():
     rng = np.random.default_rng(5)
     base = rng.integers(0, 256, (96, 120, 3), dtype=np.uint8)
-    textures = [
-        np.clip(base.astype(int) + 10 * i, 0, 255).astype(np.uint8) for i in range(4)
-    ]
+    textures = [np.clip(base.astype(int) + 10 * i, 0, 255).astype(np.uint8) for i in range(4)]
 
     cfg = tiling.TilingConfig(window_size=(8, 8), shift=2, interp_dist=1)
     tiles, meta, details = tiling.tile_states(textures, cfg)
@@ -45,10 +43,7 @@ def test_dtype_and_gray_layers(solved):
     out = tiling.apply_tiling(gray16, seams)
 
     assert out.dtype == np.uint16 and out.shape == tiles[0].shape[:2]
-    assert (
-        tiling.apply_tiling(textures[0].astype(np.float32) / 255, seams).dtype
-        == np.float32
-    )
+    assert tiling.apply_tiling(textures[0].astype(np.float32) / 255, seams).dtype == np.float32
 
 
 def test_normals_are_renormalised(solved):
@@ -66,9 +61,7 @@ def test_normals_are_renormalised(solved):
     assert np.abs(np.linalg.norm(cut, axis=-1) - 1).max() < 1e-3
 
     plain = ph.decode_normals_u16(tiling.apply_tiling(encoded, seams))
-    assert (
-        np.linalg.norm(plain, axis=-1).min() < 0.999
-    )  # blending alone shortens the vectors
+    assert np.linalg.norm(plain, axis=-1).min() < 0.999  # blending alone shortens the vectors
 
 
 def test_layer_of_the_wrong_size_is_refused(solved):
@@ -80,24 +73,18 @@ def test_layer_of_the_wrong_size_is_refused(solved):
 def test_guidance_indices_must_exist(solved):
     textures = solved[0]
     for guidance in ([0, 4], [-1], [99]):
-        cfg = tiling.TilingConfig(
-            window_size=(8, 8), shift=2, interp_dist=1, guidance=guidance
-        )
+        cfg = tiling.TilingConfig(window_size=(8, 8), shift=2, interp_dist=1, guidance=guidance)
         with pytest.raises(ValueError, match="out of range"):
             tiling.tile_states(textures, cfg)
 
-    cfg = tiling.TilingConfig(
-        window_size=(8, 8), shift=2, interp_dist=1, guidance=[0, 3]
-    )
+    cfg = tiling.TilingConfig(window_size=(8, 8), shift=2, interp_dist=1, guidance=[0, 3])
     assert tiling.tile_states(textures, cfg)[1]["guidance_state_indices"] == [0, 3]
 
 
 def test_seam_shift_finds_a_rib_offset():
     rng = np.random.default_rng(0)
 
-    profile = cv2.GaussianBlur(
-        rng.random((120, 1)).astype(np.float32), (0, 0), 2.0
-    ).ravel()
+    profile = cv2.GaussianBlur(rng.random((120, 1)).astype(np.float32), (0, 0), 2.0).ravel()
     profile = (profile - profile.min()) / (profile.max() - profile.min())
     ribs = np.tile(np.rint(255 * profile).astype(np.uint8)[:, None, None], (1, 160, 3))
 

@@ -10,9 +10,7 @@ log = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="fabsim rig", description="Fabric stretching rig acquisition app"
-    )
+    parser = argparse.ArgumentParser(prog="fabsim rig", description="Fabric stretching rig acquisition app")
     parser.add_argument(
         "--init-config",
         action="store_true",
@@ -28,9 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print the config and log directories and exit",
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="log DEBUG messages to the console"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="log DEBUG messages to the console")
 
     return parser
 
@@ -46,9 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in written:
             print(f"wrote {path}")
         if not written:
-            print(
-                f"nothing to do: all default files already exist in {config.config_dir()}"
-            )
+            print(f"nothing to do: all default files already exist in {config.config_dir()}")
 
         return 0
 

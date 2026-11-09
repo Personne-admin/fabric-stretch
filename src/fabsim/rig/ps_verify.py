@@ -55,11 +55,10 @@ def ascii_hist(
 
 
 class Solved:
-
     def __init__(self, run: RunData, idx: int, options: PsOptions, gains=None):
         self.run, self.idx, self.options = run, idx, options
-        self.ps_gray, self.albedo, self.normals, _support, self.gains, self.images = (
-            solve_gray(run, idx, options, gains)
+        self.ps_gray, self.albedo, self.normals, _support, self.gains, self.images = solve_gray(
+            run, idx, options, gains
         )
         self.mask = valid_mask(self.albedo)
         self.cfg = run.light
@@ -69,9 +68,7 @@ class Solved:
         return photometric.render(self.albedo, self.normals, self.cfg, self.gains)
 
     def diffuse_gray(self) -> np.ndarray | None:
-        image = self.run.calibrated(
-            self.run.read_bgr(self.idx, "image_diffuse"), "diffuse"
-        )
+        image = self.run.calibrated(self.run.read_bgr(self.idx, "image_diffuse"), "diffuse")
 
         return None if image is None else preprocess_gray(image, self.options)
 
@@ -86,15 +83,8 @@ def check_lights(rep: Report, cfg: photometric.LightConfig):
     L = photometric.light_matrix(cfg)
     elev, azs = cfg.elevation_deg, list(cfg.azimuths_deg)
     rep.say("-- CHECK 1: light calibration plausibility")
-    rep.say(
-        f"  source: {cfg.source}"
-        + (f", gains {np.round(cfg.gains, 3).tolist()}" if cfg.gains else "")
-    )
-    rep.say(
-        f"  elevation: {elev:.2f} deg, azimuths: "
-        + ", ".join(f"{a:.2f}" for a in azs)
-        + " deg"
-    )
+    rep.say(f"  source: {cfg.source}" + (f", gains {np.round(cfg.gains, 3).tolist()}" if cfg.gains else ""))
+    rep.say(f"  elevation: {elev:.2f} deg, azimuths: " + ", ".join(f"{a:.2f}" for a in azs) + " deg")
     rep.say("  L =")
     for row in L:
         rep.say("    [{:+.4f} {:+.4f} {:+.4f}]".format(*row))
@@ -108,10 +98,7 @@ def check_lights(rep: Report, cfg: photometric.LightConfig):
     )
 
     srt = sorted(a % 360.0 for a in azs)
-    gaps = [
-        srt[(i + 1) % len(srt)] - srt[i] + (360.0 if i == len(srt) - 1 else 0.0)
-        for i in range(len(srt))
-    ]
+    gaps = [srt[(i + 1) % len(srt)] - srt[i] + (360.0 if i == len(srt) - 1 else 0.0) for i in range(len(srt))]
     ideal = 360.0 / len(azs)
     max_dev = max(abs(g - ideal) for g in gaps)
     status = PASS if max_dev <= 25.0 else (WARN if max_dev <= 45.0 else FAIL)
@@ -122,14 +109,10 @@ def check_lights(rep: Report, cfg: photometric.LightConfig):
     )
 
     if not 20.0 <= elev <= 70.0:
-        rep.verdict(
-            WARN, "elevation", f"{elev:.1f} deg is outside the comfortable 20..70 range"
-        )
+        rep.verdict(WARN, "elevation", f"{elev:.1f} deg is outside the comfortable 20..70 range")
 
 
-def check_normals(
-    rep: Report, normals: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str
-):
+def check_normals(rep: Report, normals: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str):
     rep.say(f"-- CHECK 2: normal map sanity ({tag})")
     n_valid = int(mask.sum())
     if n_valid == 0:
@@ -139,11 +122,7 @@ def check_normals(
 
     norms = np.linalg.norm(normals, axis=2)
     dev = np.abs(norms[mask] - 1.0)
-    status = (
-        PASS
-        if dev.mean() < 0.01 and dev.max() < 0.1
-        else (WARN if dev.mean() < 0.05 else FAIL)
-    )
+    status = PASS if dev.mean() < 0.01 and dev.max() < 0.1 else (WARN if dev.mean() < 0.05 else FAIL)
     rep.verdict(
         status,
         "unit length",
@@ -177,9 +156,7 @@ def check_normals(
 
     viz = np.clip(normals * 0.5 + 0.5, 0, 1)
     viz = (viz * 255).astype(np.uint8) * mask[..., None].astype(np.uint8)
-    cv2.imwrite(
-        str(out_dir / f"{tag}_normals_rgb.png"), cv2.cvtColor(viz, cv2.COLOR_RGB2BGR)
-    )
+    cv2.imwrite(str(out_dir / f"{tag}_normals_rgb.png"), cv2.cvtColor(viz, cv2.COLOR_RGB2BGR))
 
     bins = 128
     hist, _, _ = np.histogram2d(
@@ -195,12 +172,8 @@ def check_normals(
         cv2.COLORMAP_INFERNO,
     )
     cv2.circle(heat, (256, 256), 256, (90, 90, 90), 1)
-    cv2.putText(
-        heat, "nx ->", (440, 500), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1
-    )
-    cv2.putText(
-        heat, "ny v", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1
-    )
+    cv2.putText(heat, "nx ->", (440, 500), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(heat, "ny v", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     cv2.imwrite(str(out_dir / f"{tag}_normal_direction_hist.png"), heat)
     rep.say(f"  saved: {tag}_normals_rgb.png, {tag}_normal_direction_hist.png")
 
@@ -232,10 +205,7 @@ def check_rerender(rep: Report, solved: Solved, out_dir: Path | None):
             )
             panels.append(panel)
     if out_dir is not None and panels:
-        path = (
-            out_dir
-            / f"frame{int(solved.frame.get('frame_id', 0)):04d}_rerender_compare.png"
-        )
+        path = out_dir / f"frame{int(solved.frame.get('frame_id', 0)):04d}_rerender_compare.png"
         cv2.imwrite(str(path), np.vstack(panels))
         rep.say(f"  saved: {path.name}")
 
@@ -249,9 +219,7 @@ def _panel(a: np.ndarray, b: np.ndarray, c: np.ndarray, scale: float) -> np.ndar
 
     sep = np.full((a.shape[0], 4), 128, np.uint8)
 
-    return cv2.cvtColor(
-        np.hstack([to8(a), sep, to8(b), sep, to8(c)]), cv2.COLOR_GRAY2BGR
-    )
+    return cv2.cvtColor(np.hstack([to8(a), sep, to8(b), sep, to8(c)]), cv2.COLOR_GRAY2BGR)
 
 
 def diffuse_metrics(solved: Solved, scales=(1, 16)):
@@ -267,21 +235,11 @@ def diffuse_metrics(solved: Solved, scales=(1, 16)):
         d = (
             captured
             if k == 1
-            else cv2.resize(
-                captured, None, fx=1 / k, fy=1 / k, interpolation=cv2.INTER_AREA
-            )
+            else cv2.resize(captured, None, fx=1 / k, fy=1 / k, interpolation=cv2.INTER_AREA)
         )
-        pr = (
-            pred
-            if k == 1
-            else cv2.resize(
-                pred, None, fx=1 / k, fy=1 / k, interpolation=cv2.INTER_AREA
-            )
-        )
+        pr = pred if k == 1 else cv2.resize(pred, None, fx=1 / k, fy=1 / k, interpolation=cv2.INTER_AREA)
         s = float((pr * d).sum() / max((pr * pr).sum(), 1e-12))
-        nrmse = float(
-            np.sqrt(np.mean((s * pr - d) ** 2)) / max(np.sqrt(np.mean(d**2)), 1e-9)
-        )
+        nrmse = float(np.sqrt(np.mean((s * pr - d) ** 2)) / max(np.sqrt(np.mean(d**2)), 1e-9))
         corr = float(np.corrcoef(d.ravel(), pr.ravel())[0, 1])
         per_scale[k] = (corr, nrmse)
 
@@ -296,9 +254,7 @@ def check_diffuse_holdout(rep: Report, solved: Solved, out_dir: Path | None):
     corr, nrmse = per_scale[1][0], per_scale[1][1]
     if out_dir is not None:
         scale = 1.0 / max(float(np.quantile(captured[solved.mask], 0.99)), 1e-6)
-        panel = _panel(
-            captured, fit_scale * pred, np.abs(fit_scale * pred - captured) * 5.0, scale
-        )
+        panel = _panel(captured, fit_scale * pred, np.abs(fit_scale * pred - captured) * 5.0, scale)
         cv2.putText(
             panel,
             "diffuse (held out): captured | predicted | abs diff x5",
@@ -308,10 +264,7 @@ def check_diffuse_holdout(rep: Report, solved: Solved, out_dir: Path | None):
             (60, 220, 60),
             2,
         )
-        path = (
-            out_dir
-            / f"frame{int(solved.frame.get('frame_id', 0)):04d}_diffuse_holdout.png"
-        )
+        path = out_dir / f"frame{int(solved.frame.get('frame_id', 0)):04d}_diffuse_holdout.png"
         cv2.imwrite(str(path), panel)
         rep.say(f"  saved: {path.name}")
         rep.say("  agreement by scale (downsampled comparison):")
@@ -328,9 +281,7 @@ def check_exposure(rep: Report, images: list[np.ndarray]):
         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         mean, p99 = float(g.mean()), float(np.percentile(g, 99))
         means.append(mean)
-        rep.say(
-            f"  light {i + 1}: mean {mean:6.1f}/255, p99 {p99:5.0f}/255, max {int(g.max())}/255"
-        )
+        rep.say(f"  light {i + 1}: mean {mean:6.1f}/255, p99 {p99:5.0f}/255, max {int(g.max())}/255")
     lo = min(means)
     status = PASS if lo >= 40.0 else (WARN if lo >= 20.0 else FAIL)
     rep.verdict(
@@ -342,9 +293,7 @@ def check_exposure(rep: Report, images: list[np.ndarray]):
     )
 
 
-def check_albedo(
-    rep: Report, albedo: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str
-):
+def check_albedo(rep: Report, albedo: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str):
     rep.say(f"-- CHECK 4: albedo sanity ({tag})")
     vals = albedo[mask]
     if vals.size == 0:
@@ -393,9 +342,7 @@ def check_albedo(
     rep.say(f"  saved: {tag}_albedo.png")
 
 
-def check_integrability(
-    rep: Report, normals: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str
-):
+def check_integrability(rep: Report, normals: np.ndarray, mask: np.ndarray, out_dir: Path, tag: str):
     rep.say(f"-- CHECK 5: integrability ({tag})")
     nz = normals[..., 2].copy()
     ok = mask & (nz > 0.05)
@@ -409,9 +356,7 @@ def check_integrability(
 
     # Curl of the gradient field should vanish for a real surface.
     curl = np.zeros_like(p)
-    curl[1:-1, 1:-1] = (p[2:, 1:-1] - p[:-2, 1:-1]) * 0.5 - (
-        q[1:-1, 2:] - q[1:-1, :-2]
-    ) * 0.5
+    curl[1:-1, 1:-1] = (p[2:, 1:-1] - p[:-2, 1:-1]) * 0.5 - (q[1:-1, 2:] - q[1:-1, :-2]) * 0.5
     curl_rms = float(np.sqrt(np.mean(curl[ok] ** 2)))
     grad_rms = float(np.sqrt(np.mean(p[ok] ** 2 + q[ok] ** 2)))
 
@@ -507,10 +452,7 @@ def evaluate_run(run_dir: Path, args, roi) -> dict:
 
         return r
     n = min(max(1, args.sample), len(usable))
-    picks = [
-        usable[i]
-        for i in sorted({int(round(x)) for x in np.linspace(0, len(usable) - 1, n)})
-    ]
+    picks = [usable[i] for i in sorted({int(round(x)) for x in np.linspace(0, len(usable) - 1, n)})]
 
     means, sats, nrmse1s, corr1s, nrmse16s, negzs = [], [], [], [], [], []
     for idx in picks:
@@ -552,9 +494,7 @@ def evaluate_run(run_dir: Path, args, roi) -> dict:
 def run_compare(run_dirs: list[Path], args) -> int:
     roi = tuple(int(v) for v in args.roi.split(",")) if args.roi else None
     rep = Report()
-    rep.say(
-        f"== PS CAPTURE-CONFIG COMPARISON ({len(run_dirs)} runs, {args.sample} sampled frame(s) each)"
-    )
+    rep.say(f"== PS CAPTURE-CONFIG COMPARISON ({len(run_dirs)} runs, {args.sample} sampled frame(s) each)")
     rep.say(
         "  ranking metric: held-out diffuse NRMSE at pixel scale (lower is better); runs flagged "
         "clipped/underexp are not eligible to win"
@@ -587,11 +527,7 @@ def run_compare(run_dirs: list[Path], args) -> int:
             f"settle={s.get('settle_ms', '?')}ms"
         )
 
-    eligible = [
-        r
-        for r in results
-        if r["error"] is None and r["nrmse1"] is not None and not r["flags"]
-    ]
+    eligible = [r for r in results if r["error"] is None and r["nrmse1"] is not None and not r["flags"]]
     eligible.sort(key=lambda r: r["nrmse1"])
 
     rep.say(
@@ -606,11 +542,7 @@ def run_compare(run_dirs: list[Path], args) -> int:
         if r["error"] is not None:
             rep.say(f"{'-':<5}{name_of(r):<36}  error: {r['error']}")
             continue
-        status = (
-            ",".join(r["flags"])
-            if r["flags"]
-            else ("BEST" if eligible and r is eligible[0] else "ok")
-        )
+        status = ",".join(r["flags"]) if r["flags"] else ("BEST" if eligible and r is eligible[0] else "ok")
         rank = str(i + 1) if r in eligible else "-"
         rep.say(
             f"{rank:<5}{name_of(r):<36}{r['mean8']:>6.1f}{100 * r['sat']:>7.2f}"
@@ -718,15 +650,9 @@ def run_detail(run_dir: Path, args) -> int:
     rep.say("-- CHECK 3: re-rendering self-consistency (the key check)")
     res = check_rerender(rep, solved, out_dir)
     for i, (rmse, nrmse, corr) in enumerate(res):
-        rep.say(
-            f"  light {i + 1}: RMSE {rmse:.5f}, NRMSE {100 * nrmse:.2f}%, corr {corr:.4f}"
-        )
+        rep.say(f"  light {i + 1}: RMSE {rmse:.5f}, NRMSE {100 * nrmse:.2f}%, corr {corr:.4f}")
     detail_nrmse = float(np.mean([r[1] for r in res]))
-    status = (
-        PASS
-        if detail_nrmse < NRMSE_PASS
-        else (WARN if detail_nrmse < NRMSE_WARN else FAIL)
-    )
+    status = PASS if detail_nrmse < NRMSE_PASS else (WARN if detail_nrmse < NRMSE_WARN else FAIL)
     rep.verdict(
         status,
         "re-rendering (detail frame)",
@@ -878,9 +804,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="subtract the 1st percentile of every image",
     )
-    ap.add_argument(
-        "--no-gains", action="store_true", help="do not estimate the LED gains"
-    )
+    ap.add_argument("--no-gains", action="store_true", help="do not estimate the LED gains")
     ap.add_argument(
         "--roi",
         type=str,
@@ -901,9 +825,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     run_dirs = discover_run_dirs(args.paths)
     if not run_dirs:
-        sys.exit(
-            "ERROR: no run folders (containing frames.json) found under the given path(s)"
-        )
+        sys.exit("ERROR: no run folders (containing frames.json) found under the given path(s)")
     if len(run_dirs) == 1 and not args.compare:
         return run_detail(run_dirs[0], args)
 

@@ -61,9 +61,7 @@ def read_tension() -> str:
     return "t"
 
 
-def force_limit(
-    force_n: float, release_steps: int = 0, release_dir_positive: bool = False
-) -> str:
+def force_limit(force_n: float, release_steps: int = 0, release_dir_positive: bool = False) -> str:
     if force_n <= 0:
         return "F0"
 
@@ -72,7 +70,6 @@ def force_limit(
 
 @dataclass(frozen=True)
 class Reply:
-
     kind: str
     line: str
     data: dict = field(default_factory=dict)
@@ -103,16 +100,10 @@ def parse_force_telemetry(line: str) -> dict | None:
     try:
         return {
             "force_n": float(fields["force_n"]),
-            "raw_counts": (
-                int(float(fields["raw_counts"])) if "raw_counts" in fields else None
-            ),
-            "zero_counts": (
-                int(float(fields["zero_counts"])) if "zero_counts" in fields else None
-            ),
+            "raw_counts": (int(float(fields["raw_counts"])) if "raw_counts" in fields else None),
+            "zero_counts": (int(float(fields["zero_counts"])) if "zero_counts" in fields else None),
             "calibration_n_per_count": (
-                float(fields["calibration_n_per_count"])
-                if "calibration_n_per_count" in fields
-                else None
+                float(fields["calibration_n_per_count"]) if "calibration_n_per_count" in fields else None
             ),
         }
     except (KeyError, ValueError):
@@ -134,9 +125,7 @@ def parse_reply(line: str) -> Reply:
 
         return Reply(LIMIT_TRIP, text, telemetry)
     if text.startswith("LIMIT_ARMED"):
-        return Reply(
-            LIMIT_ARMED, text, {k: float(v) for k, v in _FIELD_RE.findall(text)}
-        )
+        return Reply(LIMIT_ARMED, text, {k: float(v) for k, v in _FIELD_RE.findall(text)})
     if text.startswith("limit: off"):
         return Reply(LIMIT_OFF, text)
     if text.startswith("leds:"):

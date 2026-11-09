@@ -26,7 +26,6 @@ def frame_to_pil(frame_bgr: np.ndarray) -> Image.Image:
 
 
 class UEyeCamera:
-
     simulated = False
 
     def __init__(self):
@@ -70,18 +69,12 @@ class UEyeCamera:
         log.info("Camera open %dx%d (%s)", self._width, self._height, self._sensor_name)
 
     def _configure(self, width: int, height: int) -> None:
-        self._check(
-            ueye.is_SetColorMode(self._hcam, ueye.IS_CM_BGR8_PACKED), "is_SetColorMode"
-        )
+        self._check(ueye.is_SetColorMode(self._hcam, ueye.IS_CM_BGR8_PACKED), "is_SetColorMode")
         self._bpp = 24
         sensor_info = ueye.SENSORINFO()
         self._check(ueye.is_GetSensorInfo(self._hcam, sensor_info), "is_GetSensorInfo")
         try:
-            self._sensor_name = (
-                bytes(sensor_info.strSensorName)
-                .split(b"\0")[0]
-                .decode(errors="replace")
-            )
+            self._sensor_name = bytes(sensor_info.strSensorName).split(b"\0")[0].decode(errors="replace")
         except (TypeError, ValueError):
             self._sensor_name = ""
         self._width = width or sensor_info.nMaxWidth.value
@@ -145,9 +138,7 @@ class UEyeCamera:
             )
             self._exposure_ms = float(actual.value)
         if abs(self._exposure_ms - ms) > 0.05 * ms:
-            log.warning(
-                "Requested exposure %.3f ms, camera uses %.3f ms", ms, self._exposure_ms
-            )
+            log.warning("Requested exposure %.3f ms, camera uses %.3f ms", ms, self._exposure_ms)
 
         return self._exposure_ms
 
@@ -193,7 +184,6 @@ class UEyeCamera:
 
 
 class SimCamera:
-
     simulated = True
 
     def __init__(self, width: int = 320, height: int = 240):
@@ -227,9 +217,7 @@ class SimCamera:
             return None
         self._shots += 1
         ys, xs = np.mgrid[0 : self._height, 0 : self._width]
-        value = 40 + 120 * (xs + ys + 7 * self._shots) / (
-            self._width + self._height + 7 * self._shots
-        )
+        value = 40 + 120 * (xs + ys + 7 * self._shots) / (self._width + self._height + 7 * self._shots)
         frame = np.stack([value, value * 0.8, value * 0.6], axis=-1)
 
         return np.clip(frame, 0, 255).astype(np.uint8)

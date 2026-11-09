@@ -82,9 +82,7 @@ class PrimitiveTests(unittest.TestCase):
 
 class AreaAndArgumentTests(unittest.TestCase):
     def p(self, **kw):
-        a = dict(
-            shape_hw=(300, 400), window_size=[20, 30], shift=0, interp_dist=2, area=None
-        )
+        a = dict(shape_hw=(300, 400), window_size=[20, 30], shift=0, interp_dist=2, area=None)
         a.update(kw)
 
         return tt.resolve_params(**a)
@@ -149,18 +147,14 @@ class AutomaticCoordinatesTests(unittest.TestCase):
 
         # start with y2/x2 too large by 6/4 -> shifts back to the true period
         y1, x1 = 30, 30
-        res = tt.automatic_coordinates_for_max_tile(
-            I, (10, 10), (8, 8), [y1, y1 + Py + 3, x1, x1 + Px + 2]
-        )
+        res = tt.automatic_coordinates_for_max_tile(I, (10, 10), (8, 8), [y1, y1 + Py + 3, x1, x1 + Px + 2])
 
         self.assertEqual(res[1], y1 + Py)
         self.assertEqual(res[3], x1 + Px)
 
     def test_ties_choose_lowest_shift(self):
         I = np.zeros((100, 100, 1))
-        res = tt.automatic_coordinates_for_max_tile(
-            I, (10, 10), (5, 5), [30, 70, 30, 70]
-        )
+        res = tt.automatic_coordinates_for_max_tile(I, (10, 10), (5, 5), [30, 70, 30, 70])
         self.assertEqual(res[1], 65)
         self.assertEqual(res[3], 65)  # strict '<'
 
@@ -173,9 +167,7 @@ class PipelineTests(unittest.TestCase):
         self.img = np.tile(base, (4, 4, 1))[:150, :180]
 
     def run_tile(self, **kw):
-        return tt.find_tile(
-            self.img, [10, 10], kw.pop("shift", 0), kw.pop("interp_dist", 0), **kw
-        )
+        return tt.find_tile(self.img, [10, 10], kw.pop("shift", 0), kw.pop("interp_dist", 0), **kw)
 
     def test_periodic_image_reproduced_and_tile_size(self):
         tile, area, insp = self.run_tile(area=[30, 30, self.Py + 1, self.Px + 1])
@@ -184,15 +176,11 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(area, (31, 31, self.Py + 1, self.Px + 1))
         self.assertEqual(tile.shape, (self.Py, self.Px, 3))  # one smaller than area
 
-        np.testing.assert_allclose(
-            tile, self.img[30 : 30 + self.Py, 30 : 30 + self.Px], atol=1e-12
-        )
+        np.testing.assert_allclose(tile, self.img[30 : 30 + self.Py, 30 : 30 + self.Px], atol=1e-12)
 
     def test_uint8_roundtrip_and_dtype(self):
         u8 = np.round(self.img * 255).astype(np.uint8)
-        tile, _, _ = tt.find_tile(
-            u8, [10, 10], 0, 0, area=[30, 30, self.Py + 1, self.Px + 1]
-        )
+        tile, _, _ = tt.find_tile(u8, [10, 10], 0, 0, area=[30, 30, self.Py + 1, self.Px + 1])
 
         self.assertEqual(tile.dtype, np.uint8)
         np.testing.assert_array_equal(tile, u8[30 : 30 + self.Py, 30 : 30 + self.Px])
@@ -236,9 +224,7 @@ class PipelineTests(unittest.TestCase):
         n = rng.random((150, 180, 1))
         k = np.ones(9) / 9
         for ax in (0, 1):
-            n = np.apply_along_axis(
-                lambda v: np.convolve(np.pad(v, 4, mode="edge"), k, "valid"), ax, n
-            )
+            n = np.apply_along_axis(lambda v: np.convolve(np.pad(v, 4, mode="edge"), k, "valid"), ax, n)
 
         y = np.linspace(0, 1, 150)[:, None, None]
         x = np.linspace(0, 1, 180)[None, :, None]
@@ -302,9 +288,7 @@ class PathSearchTests(unittest.TestCase):
             E[r - 1, c - 1] = 1
 
         P, _ = tt.optimal_path(E, [[1, 1]], [[5, 7]])
-        np.testing.assert_array_equal(
-            P, [[1, 1], [2, 2], [3, 3], [3, 4], [4, 5], [5, 6], [5, 7]]
-        )
+        np.testing.assert_array_equal(P, [[1, 1], [2, 2], [3, 3], [3, 4], [4, 5], [5, 6], [5, 7]])
 
     def test_end_selection_takes_cheapest_end_first_on_tie(self):
         E = np.ones((3, 3))
@@ -329,9 +313,7 @@ class PathSearchTests(unittest.TestCase):
         self.assertEqual(P[0].tolist(), [3, 2])
         self.assertEqual(P[-1].tolist(), [18, 2])
         self.assertTrue((np.abs(np.diff(P, axis=0)).max(axis=1) <= 1).all())
-        self.assertEqual(
-            len({tuple(p) for p in P.tolist()}), len(P)
-        )  # visited cells are never reused
+        self.assertEqual(len({tuple(p) for p in P.tolist()}), len(P))  # visited cells are never reused
 
     def test_no_path_guard(self):
         C = np.full((5, 5), np.inf)

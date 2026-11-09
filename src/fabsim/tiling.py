@@ -18,12 +18,8 @@ class TilingConfig:
     shift: object = 20  # scalar or [left right top down]
     interp_dist: object = 2  # scalar or [vertical, horizontal]
     guidance: object = None  # None = all states, else indices into the state list
-    area: object = (
-        None  # MATLAB 'area' input (0-based [top left h w], see findTile); None = automatic
-    )
-    joint_search: bool = (
-        False  # score bottom and right edges together (rib-phase aware seam)
-    )
+    area: object = None  # MATLAB 'area' input (0-based [top left h w], see findTile); None = automatic
+    joint_search: bool = False  # score bottom and right edges together (rib-phase aware seam)
 
 
 def tile_states(textures, cfg: TilingConfig):
@@ -206,9 +202,7 @@ def write_diagnostics(out_dir, orientation, textures, tiles, meta, details, pick
     # 1) selected area + 2) seams over the source atlas
     ov = _rgb(ref.copy())
     d = ImageDraw.Draw(ov)
-    d.rectangle(
-        [left - 1, top - 1, left - 1 + tw, top - 1 + th], outline=(255, 255, 0), width=2
-    )
+    d.rectangle([left - 1, top - 1, left - 1 + tw, top - 1 + th], outline=(255, 255, 0), width=2)
     PH, PV = details["paths"]
     oy, ox = (
         details["crop_origin"][0] - 1,
@@ -239,9 +233,7 @@ def write_diagnostics(out_dir, orientation, textures, tiles, meta, details, pick
     cells = []
     for name, i in picks.items():
         r = _repeat(tiles[i], 2)
-        im = _rgb(r).resize(
-            (max(1, int(r.shape[1] * scale)), max(1, int(r.shape[0] * scale)))
-        )
+        im = _rgb(r).resize((max(1, int(r.shape[1] * scale)), max(1, int(r.shape[0] * scale))))
         ImageDraw.Draw(im).text((6, 6), f"{name} (state {i})", fill=(255, 255, 0))
         cells.append(im)
 

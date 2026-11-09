@@ -20,16 +20,12 @@ def make_run(path, n_frames=3, ps=True, force_status="ok"):
             "image_diffuse": f"img_{i:04d}_diffuse.png",
         }
 
-        Image.fromarray(np.full((8, 8, 3), 100, np.uint8)).save(
-            path / "images" / frame["image_diffuse"]
-        )
+        Image.fromarray(np.full((8, 8, 3), 100, np.uint8)).save(path / "images" / frame["image_diffuse"])
 
         if ps:
             for k, key in enumerate(dataset.PS_KEYS, 1):
                 frame[key] = f"img_{i:04d}_ps_{k}.png"
-                Image.fromarray(np.full((8, 8, 3), 50 * k, np.uint8)).save(
-                    path / "images" / frame[key]
-                )
+                Image.fromarray(np.full((8, 8, 3), 50 * k, np.uint8)).save(path / "images" / frame[key])
 
         frames.append(frame)
         forces.append({"index": i, "force_n": float(i), "status": force_status})
@@ -56,14 +52,10 @@ def test_discover_runs_sorted_and_filtered(tmp_path):
     ]
 
     assert runs[2].orientation == "warp_bias"
-    assert [r.name for r in dataset.discover_runs(tmp_path, ["weft"])] == [
-        "weft_release"
-    ]
+    assert [r.name for r in dataset.discover_runs(tmp_path, ["weft"])] == ["weft_release"]
 
     grouped = dataset.discover_orientations(tmp_path)
-    assert set(grouped["warp"]) == {"loading", "release"} and set(grouped["weft"]) == {
-        "release"
-    }
+    assert set(grouped["warp"]) == {"loading", "release"} and set(grouped["weft"]) == {"release"}
 
     assert dataset.discover_runs(tmp_path / "missing") == []
 
@@ -112,9 +104,7 @@ def test_validate_run_reports_problems(tmp_path):
     make_run(bad, force_status="error")
     (bad / "images" / "img_0000_diffuse.png").unlink()
     errors, _ = validate_run(bad)
-    assert any("missing images" in e for e in errors) and any(
-        "force" in e for e in errors
-    )
+    assert any("missing images" in e for e in errors) and any("force" in e for e in errors)
 
     assert validate_main([str(tmp_path)]) == 1
     assert validate_main([str(tmp_path / "empty")]) == 1

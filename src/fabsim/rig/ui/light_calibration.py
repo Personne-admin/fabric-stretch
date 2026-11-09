@@ -10,9 +10,7 @@ from ..hardware.camera import frame_to_pil
 from .widgets import ImageCanvas
 
 
-def shadow_to_light_azimuth(
-    base: tuple[float, float], tip: tuple[float, float]
-) -> float:
+def shadow_to_light_azimuth(base: tuple[float, float], tip: tuple[float, float]) -> float:
     shadow_dx = tip[0] - base[0]
     shadow_dy_up = -(tip[1] - base[1])  # image y points down
     shadow_az = float(np.degrees(np.arctan2(shadow_dy_up, shadow_dx)))
@@ -67,14 +65,10 @@ class LightCalibrationDialog:
         params.pack(fill="x", padx=10, pady=4)
         ttk.Label(params, text="LED power:").pack(side="left")
         self.power_var = tk.IntVar(value=self.app.power_var.get())
-        ttk.Spinbox(
-            params, from_=10, to=255, textvariable=self.power_var, width=6
-        ).pack(side="left", padx=4)
+        ttk.Spinbox(params, from_=10, to=255, textvariable=self.power_var, width=6).pack(side="left", padx=4)
         ttk.Separator(params, orient="vertical").pack(side="left", fill="y", padx=8)
         ttk.Label(params, text="Elevation (°):").pack(side="left")
-        self.elev_var = tk.DoubleVar(
-            value=self.led_cfg.get("light_elevation_deg", 45.0)
-        )
+        self.elev_var = tk.DoubleVar(value=self.led_cfg.get("light_elevation_deg", 45.0))
         ttk.Spinbox(
             params,
             from_=10.0,
@@ -83,16 +77,10 @@ class LightCalibrationDialog:
             textvariable=self.elev_var,
             width=6,
         ).pack(side="left", padx=4)
-        ttk.Label(params, text="(physical tilt above horizontal)").pack(
-            side="left", padx=4
-        )
+        ttk.Label(params, text="(physical tilt above horizontal)").pack(side="left", padx=4)
 
-        self.status_var = tk.StringVar(
-            value=f"Click 'Capture LED 1 (bit {self.pol_a_bits[0]})' to begin."
-        )
-        ttk.Label(dlg, textvariable=self.status_var, font=("", 11, "bold")).pack(
-            padx=10, pady=4, anchor="w"
-        )
+        self.status_var = tk.StringVar(value=f"Click 'Capture LED 1 (bit {self.pol_a_bits[0]})' to begin.")
+        ttk.Label(dlg, textvariable=self.status_var, font=("", 11, "bold")).pack(padx=10, pady=4, anchor="w")
 
         self.canvas = ImageCanvas(
             dlg,
@@ -121,15 +109,11 @@ class LightCalibrationDialog:
             command=self._capture,
         )
         self.btn_capture.pack(side="left", padx=4)
-        self.btn_redo = ttk.Button(
-            btns, text="Redo This LED", command=self._redo, state="disabled"
-        )
+        self.btn_redo = ttk.Button(btns, text="Redo This LED", command=self._redo, state="disabled")
         self.btn_redo.pack(side="left", padx=4)
         ttk.Frame(btns).pack(side="left", fill="x", expand=True)
         ttk.Button(btns, text="Cancel", command=self._cancel).pack(side="right", padx=4)
-        self.btn_save = ttk.Button(
-            btns, text="Save Calibration", command=self._save, state="disabled"
-        )
+        self.btn_save = ttk.Button(btns, text="Save Calibration", command=self._save, state="disabled")
         self.btn_save.pack(side="right", padx=4)
 
     def _shoot(self, mask: int, power: int):
@@ -152,9 +136,7 @@ class LightCalibrationDialog:
         self.status_var.set(f"Capturing with LED {self.current_idx + 1} (bit {bit})...")
         self.btn_capture.config(state="disabled")
         self.btn_redo.config(state="disabled")
-        self.app.run_async(
-            lambda: self._shoot(1 << bit, self.power_var.get()), self._captured
-        )
+        self.app.run_async(lambda: self._shoot(1 << bit, self.power_var.get()), self._captured)
 
     def _captured(self, image: Image.Image | None, error: Exception | None):
         if error is not None or image is None:
@@ -168,23 +150,17 @@ class LightCalibrationDialog:
             return
         self.current_base = None
         self.click_state = "wait_base"
-        self.measurements = [
-            m for m in self.measurements if m["led_idx"] != self.current_idx
-        ]
+        self.measurements = [m for m in self.measurements if m["led_idx"] != self.current_idx]
         self._update_results()
         self.canvas.show_image(image)
-        self.status_var.set(
-            f"LED {self.current_idx + 1}: click the BASE of the upright object."
-        )
+        self.status_var.set(f"LED {self.current_idx + 1}: click the BASE of the upright object.")
         self.btn_redo.config(state="normal")
 
     def _on_click(self, ix: float, iy: float):
         if self.click_state == "wait_base":
             self.current_base = (ix, iy)
             self.click_state = "wait_tip"
-            self.status_var.set(
-                f"LED {self.current_idx + 1}: now click the TIP of the SHADOW."
-            )
+            self.status_var.set(f"LED {self.current_idx + 1}: now click the TIP of the SHADOW.")
             self.canvas.show_image(self.canvas.image)
         elif self.click_state == "wait_tip":
             azimuth = shadow_to_light_azimuth(self.current_base, (ix, iy))
@@ -199,9 +175,7 @@ class LightCalibrationDialog:
             )
             self.click_state = "done"
             self.canvas.show_image(self.canvas.image)
-            self.status_var.set(
-                f"LED {self.current_idx + 1}: azimuth ≈ {azimuth:.1f}°."
-            )
+            self.status_var.set(f"LED {self.current_idx + 1}: azimuth ≈ {azimuth:.1f}°.")
             self._update_results()
             self._advance_or_finish()
 
@@ -214,18 +188,14 @@ class LightCalibrationDialog:
                 text=f"Capture LED {self.current_idx + 1} (bit {self.pol_a_bits[self.current_idx]})",
             )
             self.btn_redo.config(state="disabled")
-            self.status_var.set(
-                f"Click 'Capture LED {self.current_idx + 1}' when the next LED is ready."
-            )
+            self.status_var.set(f"Click 'Capture LED {self.current_idx + 1}' when the next LED is ready.")
         else:
             self.btn_capture.config(state="disabled", text="All 3 LEDs done")
             self.btn_save.config(state="normal")
             self.status_var.set("All 3 LEDs measured")
 
     def _redo(self):
-        self.measurements = [
-            m for m in self.measurements if m["led_idx"] != self.current_idx
-        ]
+        self.measurements = [m for m in self.measurements if m["led_idx"] != self.current_idx]
         self.btn_save.config(state="disabled")
         self._update_results()
         self._capture()
@@ -241,9 +211,7 @@ class LightCalibrationDialog:
                 )
         if self.current_base is not None and self.click_state in ("wait_tip", "done"):
             self._draw_marker(self.current_base, "#ff5050", "BASE")
-        current = next(
-            (m for m in self.measurements if m["led_idx"] == self.current_idx), None
-        )
+        current = next((m for m in self.measurements if m["led_idx"] == self.current_idx), None)
         if current is not None:
             self._draw_arrow(current["base"], current["tip"], "#ffff60", "shadow")
             bx, by = current["base"]
@@ -272,9 +240,7 @@ class LightCalibrationDialog:
     def _draw_arrow(self, p_from, p_to, color, label):
         a = self.canvas.image_to_canvas(p_from)
         b = self.canvas.image_to_canvas(p_to)
-        self.canvas.create_line(
-            *a, *b, fill=color, width=2, arrow="last", arrowshape=(12, 14, 5)
-        )
+        self.canvas.create_line(*a, *b, fill=color, width=2, arrow="last", arrowshape=(12, 14, 5))
         if label:
             self.canvas.create_text(
                 (a[0] + b[0]) / 2 + 8,

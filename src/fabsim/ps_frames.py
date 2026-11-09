@@ -16,15 +16,11 @@ from . import photometric as ph
 
 MANIFEST = "ps_manifest.json"
 ALBEDO_ENCODING = "linear RGB 8-bit; albedo = value/255*albedo_scale"
-NORMAL_ENCODING = (
-    "16-bit RGB; n = 2*v/65535-1; x=image right, y=image up, z=toward camera"
-)
+NORMAL_ENCODING = "16-bit RGB; n = 2*v/65535-1; x=image right, y=image up, z=toward camera"
 
 
 def _frame_inputs(run: Path, frame: dict):
-    ps = ph.read_ps_gray(
-        [dataset.image_path(run, frame[key]) for key in dataset.PS_KEYS]
-    )
+    ps = ph.read_ps_gray([dataset.image_path(run, frame[key]) for key in dataset.PS_KEYS])
 
     diffuse = ph.read_rgb_linear(dataset.image_path(run, frame["image_diffuse"]))
     if diffuse.shape[:2] != ps.shape[:2]:
@@ -40,9 +36,7 @@ def reference_frame(run: Path, frames: list[dict]) -> dict | None:
 
     tracks = run / "tracks.json"
     if tracks.is_file():
-        wanted = (
-            json.loads(tracks.read_text()).get("provenance", {}).get("reference_frame")
-        )
+        wanted = json.loads(tracks.read_text()).get("provenance", {}).get("reference_frame")
 
         for frame in with_ps:
             if dataset.frame_id(frame, frames.index(frame)) == wanted:
@@ -57,15 +51,11 @@ class Reference:
     albedo_scale: float
     exposure_gain: float  # all-LED diffuse brightness over single-LED albedo brightness
     quality: dict
-    track_gains: (
-        bool  # True: gains are estimated again for every frame (none were configured)
-    )
+    track_gains: bool  # True: gains are estimated again for every frame (none were configured)
     warnings: list[str] = field(default_factory=list)
 
 
-def frame_light(
-    reference: Reference, ps: np.ndarray, support: np.ndarray | None = None
-) -> ph.LightConfig:
+def frame_light(reference: Reference, ps: np.ndarray, support: np.ndarray | None = None) -> ph.LightConfig:
     if not reference.track_gains:
         return reference.light
 
@@ -91,9 +81,7 @@ def measure_reference(run: Path, frames: list[dict], cfg: ph.LightConfig) -> Ref
     colour = ph.color_albedo(albedo, diffuse)
     quality = {
         "reference_frame_id": dataset.frame_id(frame, frames.index(frame)),
-        "albedo_diffuse_correlation": round(
-            ph.albedo_correlation(albedo, diffuse, support), 3
-        ),
+        "albedo_diffuse_correlation": round(ph.albedo_correlation(albedo, diffuse, support), 3),
         "mean_normal_tilt_deg": round(ph.mean_normal_tilt_deg(normals, support), 2),
         "exposure_gain": ph.exposure_gain(albedo, normals, diffuse, support),
     }
@@ -128,9 +116,7 @@ def _process_frame(task):
         cfg = frame_light(reference, ps)
         albedo, normals = ph.solve(ps, cfg)
 
-        rgb = ph.encode_albedo_u8(
-            ph.color_albedo(albedo, diffuse), reference.albedo_scale
-        )
+        rgb = ph.encode_albedo_u8(ph.color_albedo(albedo, diffuse), reference.albedo_scale)
 
         cv2.imwrite(
             str(Path(out) / f"img_{fid:04d}_albedo.png"),
@@ -194,9 +180,7 @@ def process_run(run: Path, reference: Reference, jobs: int = 1) -> dict:
         "frames": entries,
     }
     if failed:
-        manifest["skipped_frames"] = [
-            {"frame_id": fid, "reason": failed[fid]} for fid in sorted(failed)
-        ]
+        manifest["skipped_frames"] = [{"frame_id": fid, "reason": failed[fid]} for fid in sorted(failed)]
 
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
 
@@ -242,9 +226,7 @@ def run_project(
         if "skipped_frames" in manifest:
             text += f", {len(manifest['skipped_frames'])} unreadable frame(s) skipped"
 
-        status[run.name] = "; ".join(
-            [text, *(f"warning: {w}" for w in reference.warnings)]
-        )
+        status[run.name] = "; ".join([text, *(f"warning: {w}" for w in reference.warnings)])
 
     return status
 
@@ -259,9 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="project folder containing <orientation>_<branch> runs",
     )
-    parser.add_argument(
-        "--runs", nargs="+", metavar="RUN", help="only these run folders (default: all)"
-    )
+    parser.add_argument("--runs", nargs="+", metavar="RUN", help="only these run folders (default: all)")
     parser.add_argument(
         "--led-config",
         type=Path,
@@ -273,16 +253,12 @@ def main(argv: list[str] | None = None) -> int:
         default=min(4, os.cpu_count() or 1),
         help="worker processes per run (default: %(default)s)",
     )
-    parser.add_argument(
-        "--force", action="store_true", help="regenerate runs that already have ps/"
-    )
+    parser.add_argument("--force", action="store_true", help="regenerate runs that already have ps/")
     args = parser.parse_args(argv)
     if not args.project.is_dir():
         parser.error(f"{args.project} is not a directory")
 
-    status = run_project(
-        args.project, args.runs, args.led_config, max(1, args.jobs), args.force
-    )
+    status = run_project(args.project, args.runs, args.led_config, max(1, args.jobs), args.force)
 
     for name, text in status.items():
         print(f"{name}: {text}")

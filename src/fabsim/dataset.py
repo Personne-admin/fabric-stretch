@@ -65,9 +65,7 @@ def ignored_run_folders(project: Path) -> list[tuple[str, str]]:
 
         suffixed = _SUFFIXED_RUN_NAME.match(entry.name)
         hint = f"; rename it to replace {suffixed['name']}" if suffixed else ""
-        ignored.append(
-            (entry.name, f"name is not <orientation>_<loading|release>{hint}")
-        )
+        ignored.append((entry.name, f"name is not <orientation>_<loading|release>{hint}"))
 
     return ignored
 
@@ -80,9 +78,7 @@ def warn_ignored_run_folders(project: Path, file=None) -> list[tuple[str, str]]:
     return ignored
 
 
-def discover_orientations(
-    project: Path, orientations: list[str] | None = None
-) -> dict[str, dict[str, Run]]:
+def discover_orientations(project: Path, orientations: list[str] | None = None) -> dict[str, dict[str, Run]]:
     grouped: dict[str, dict[str, Run]] = {}
     for run in discover_runs(project, orientations):
         grouped.setdefault(run.orientation, {})[run.branch] = run
@@ -112,11 +108,7 @@ def load_force(run: Path) -> dict[int, dict]:
     readings = {}
     for entry in _load_json(path).get("forces", []):
         value = entry.get("force_n")
-        if (
-            entry.get("status") == "ok"
-            and isinstance(value, (int, float))
-            and math.isfinite(value)
-        ):
+        if entry.get("status") == "ok" and isinstance(value, (int, float)) and math.isfinite(value):
             readings[int(entry["index"])] = entry
 
     return readings

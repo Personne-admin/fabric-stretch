@@ -12,9 +12,7 @@ from unittest import mock
 
 import numpy as np
 
-ADAPTER_PATH = (
-    Path(__file__).resolve().parents[2] / "src" / "fabsim" / "cowtracker_to_fabsim.py"
-)
+ADAPTER_PATH = Path(__file__).resolve().parents[2] / "src" / "fabsim" / "cowtracker_to_fabsim.py"
 
 
 def _import_adapter():
@@ -54,16 +52,12 @@ class CoordinateTransformTests(unittest.TestCase):
         self.assertAlmostEqual(yi, (0.5) * INF_H / SRC_H - 0.5, places=5)
 
     def test_pixel_center_center(self):
-        xi, yi = ct.source_to_inference(
-            SRC_W / 2 - 0.5, SRC_H / 2 - 0.5, SRC_W, SRC_H, INF_W, INF_H
-        )
+        xi, yi = ct.source_to_inference(SRC_W / 2 - 0.5, SRC_H / 2 - 0.5, SRC_W, SRC_H, INF_W, INF_H)
         self.assertAlmostEqual(xi, INF_W / 2 - 0.5, places=5)
         self.assertAlmostEqual(yi, INF_H / 2 - 0.5, places=5)
 
     def test_pixel_center_bottom_right(self):
-        xi, yi = ct.source_to_inference(
-            SRC_W - 1.0, SRC_H - 1.0, SRC_W, SRC_H, INF_W, INF_H
-        )
+        xi, yi = ct.source_to_inference(SRC_W - 1.0, SRC_H - 1.0, SRC_W, SRC_H, INF_W, INF_H)
         self.assertAlmostEqual(xi, (SRC_W - 0.5) * INF_W / SRC_W - 0.5, places=5)
         self.assertAlmostEqual(yi, (SRC_H - 0.5) * INF_H / SRC_H - 0.5, places=5)
 
@@ -85,23 +79,15 @@ class CoordinateTransformTests(unittest.TestCase):
             (SRC_W / 2 - 0.5, SRC_H / 2 - 0.5),
             (123.456, 789.012),
         ]:
-            xi, yi = ct.source_to_inference(
-                x, y, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED
-            )
+            xi, yi = ct.source_to_inference(x, y, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED)
             self.assertAlmostEqual(xi, x * INF_W / SRC_W, places=6)
-            xs, ys = ct.inference_to_source(
-                xi, yi, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED
-            )
+            xs, ys = ct.inference_to_source(xi, yi, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED)
             self.assertAlmostEqual(xs, x, places=6)
             self.assertAlmostEqual(ys, y, places=6)
 
     def test_conventions_differ_by_half_pixel(self):
-        xi_pc, yi_pc = ct.source_to_inference(
-            0.0, 0.0, SRC_W, SRC_H, INF_W, INF_H, ct.PIXEL_CENTER
-        )
-        xi_ca, yi_ca = ct.source_to_inference(
-            0.0, 0.0, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED
-        )
+        xi_pc, yi_pc = ct.source_to_inference(0.0, 0.0, SRC_W, SRC_H, INF_W, INF_H, ct.PIXEL_CENTER)
+        xi_ca, yi_ca = ct.source_to_inference(0.0, 0.0, SRC_W, SRC_H, INF_W, INF_H, ct.CORNER_ALIGNED)
         # pc: (c+0.5)*s - 0.5 ; ca: c*s  ->  pc = ca + 0.5*(s - 1)
         self.assertAlmostEqual(xi_pc, xi_ca + 0.5 * (INF_W / SRC_W - 1.0), places=6)
         self.assertAlmostEqual(yi_pc, yi_ca + 0.5 * (INF_H / SRC_H - 1.0), places=6)
@@ -121,9 +107,7 @@ class PixelCenterResizeTests(unittest.TestCase):
 
     def test_downscale_of_linear_image_is_exact(self):
         xs, ys = np.meshgrid(np.arange(SRC_W), np.arange(SRC_H), indexing="xy")
-        img = (xs.astype(np.float64) * 0.5 + ys.astype(np.float64) * 0.25).astype(
-            np.float32
-        )
+        img = (xs.astype(np.float64) * 0.5 + ys.astype(np.float64) * 0.25).astype(np.float32)
         out = ct.pixel_center_resize(img, INF_H, INF_W)
         self.assertEqual(out.shape, (INF_H, INF_W))
         # Expected output value: linear field evaluated at the sample points.
@@ -163,16 +147,11 @@ class SyntheticDenseFieldTests(unittest.TestCase):
         field = self._field(T)
 
         # Queries map inside the model's pixel-center span [0, Wi-1]x[0, Hi-1].
-        queries = make_points(
-            [(100.0, 80.0), (640.0, 511.5), (1200.0, 950.25), (1270.0, 1020.0)]
-        )
+        queries = make_points([(100.0, 80.0), (640.0, 511.5), (1200.0, 950.25), (1270.0, 1020.0)])
 
         query_src = np.asarray([[p.x, p.y] for p in queries])
         query_inf = np.asarray(
-            [
-                ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H)
-                for p in queries
-            ]
+            [ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H) for p in queries]
         )
 
         sampled_inf = ct.sample_dense_field(field, query_inf[:, 0], query_inf[:, 1])
@@ -194,12 +173,8 @@ class SyntheticDenseFieldTests(unittest.TestCase):
         # Linear motion: each frame moves 3*scale_x px in x, 5*scale_y in y.
         sx, sy = INF_W / SRC_W, INF_H / SRC_H
         for t in range(T):
-            np.testing.assert_allclose(
-                track_src[t, :, 0], query_src[:, 0] + 3.0 * t / sx, atol=1e-3
-            )
-            np.testing.assert_allclose(
-                track_src[t, :, 1], query_src[:, 1] + 5.0 * t / sy, atol=1e-3
-            )
+            np.testing.assert_allclose(track_src[t, :, 0], query_src[:, 0] + 3.0 * t / sx, atol=1e-3)
+            np.testing.assert_allclose(track_src[t, :, 1], query_src[:, 1] + 5.0 * t / sy, atol=1e-3)
 
     def test_reference_error_is_zero_for_identity_reference(self):
         T = 4
@@ -207,10 +182,7 @@ class SyntheticDenseFieldTests(unittest.TestCase):
         queries = make_points([(10.0, 20.0), (300.0, 400.0), (900.0, 700.0)])
         query_src = np.asarray([[p.x, p.y] for p in queries])
         query_inf = np.asarray(
-            [
-                ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H)
-                for p in queries
-            ]
+            [ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H) for p in queries]
         )
 
         sampled = ct.sample_dense_field(field, query_inf[:, 0], query_inf[:, 1])
@@ -231,12 +203,7 @@ class SyntheticDenseFieldTests(unittest.TestCase):
         # Source x = 0.0 maps to inference x = -0.28125 (outside [0, Wi-1]).
         query = make_points([(0.0, 512.0)])
         query_src = np.asarray([[p.x, p.y] for p in query])
-        query_inf = np.asarray(
-            [
-                ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H)
-                for p in query
-            ]
-        )
+        query_inf = np.asarray([ct.source_to_inference(p.x, p.y, SRC_W, SRC_H, INF_W, INF_H) for p in query])
         self.assertLess(query_inf[0, 0], 0.0)
         sampled = ct.sample_dense_field(field, query_inf[:, 0], query_inf[:, 1])
 
@@ -255,9 +222,7 @@ class SyntheticDenseFieldTests(unittest.TestCase):
         self.assertAlmostEqual(err[0], expected_xs, places=5)
 
         # The preflight warning still flags such points.
-        notes = ct.validate_points_in_image(
-            query, SRC_W, SRC_H, INF_W, INF_H, ct.PIXEL_CENTER
-        )
+        notes = ct.validate_points_in_image(query, SRC_W, SRC_H, INF_W, INF_H, ct.PIXEL_CENTER)
         self.assertTrue(any("inference field" in n for n in notes))
 
     def test_rotation_remap_anchors_reference(self):
@@ -270,9 +235,7 @@ class SyntheticDenseFieldTests(unittest.TestCase):
 
         # Rotated-order dense field anchored at rotated position 0.
         field = self._field(T)
-        query_inf = np.asarray(
-            [ct.source_to_inference(500.0, 400.0, SRC_W, SRC_H, INF_W, INF_H)]
-        )
+        query_inf = np.asarray([ct.source_to_inference(500.0, 400.0, SRC_W, SRC_H, INF_W, INF_H)])
 
         # Sample in rotated order, then remap back to original order.
         sampled_rot = ct.sample_dense_field(field, query_inf[:, 0], query_inf[:, 1])
@@ -309,18 +272,14 @@ class DenseFieldEdgeClampingTests(unittest.TestCase):
         field = self._x_ramp()
         # x = W - 0.5 maps beyond the last pixel center; x = W + 5 far beyond.
         # Both must sample the last column exactly (value W - 1).
-        out = ct.sample_dense_field(
-            field, np.array([self.W - 0.5, self.W + 5.0]), np.array([3.0, 3.0])
-        )
+        out = ct.sample_dense_field(field, np.array([self.W - 0.5, self.W + 5.0]), np.array([3.0, 3.0]))
         np.testing.assert_allclose(out[0, :, 0], [self.W - 1, self.W - 1], atol=1e-6)
 
     def test_y_edges_clamp_to_first_and_last_row(self):
         # Nonconstant along y: value == row index.
         gy, gx = np.meshgrid(np.arange(self.H), np.arange(self.W), indexing="ij")
         field = gy.astype(np.float32)[None, :, :, None]
-        out = ct.sample_dense_field(
-            field, np.array([1.5, 1.5]), np.array([-0.5, self.H + 2.0])
-        )
+        out = ct.sample_dense_field(field, np.array([1.5, 1.5]), np.array([-0.5, self.H + 2.0]))
 
         np.testing.assert_allclose(out[0, :, 0], [0.0, self.H - 1], atol=1e-6)
 
@@ -495,9 +454,7 @@ class PointsLoadingTests(unittest.TestCase):
         self.assertEqual(int(exact[-1].x), SRC_W - 1)
         # Determinism.
         again = ct.grid_points(4, 3, SRC_W, SRC_H)
-        self.assertEqual(
-            [(p.id, p.x, p.y) for p in pts], [(p.id, p.x, p.y) for p in again]
-        )
+        self.assertEqual([(p.id, p.x, p.y) for p in pts], [(p.id, p.x, p.y) for p in again])
 
     def test_grid_spacing_mode(self):
         pts = ct.grid_points(0, 0, SRC_W, SRC_H, spacing=(100.0, 200.0))
@@ -519,9 +476,7 @@ class ConfidenceAndSamplingTests(unittest.TestCase):
         )
         np.testing.assert_allclose(ct.combine_confidence(vis, conf, "vis"), vis)
         np.testing.assert_allclose(ct.combine_confidence(vis, conf, "conf"), conf)
-        np.testing.assert_allclose(
-            ct.combine_confidence(vis, conf, "min"), np.minimum(vis, conf)
-        )
+        np.testing.assert_allclose(ct.combine_confidence(vis, conf, "min"), np.minimum(vis, conf))
 
     def test_low_quality_points_are_retained_not_dropped(self):
         T, N = 3, 4
@@ -535,15 +490,11 @@ class ConfidenceAndSamplingTests(unittest.TestCase):
         low = emitted < 0.1
         if np.any(low):
             idx = np.argwhere(low)[0]
-            self.assertEqual(
-                emitted[idx[0], idx[1]], vis[idx[0], idx[1]] * conf[idx[0], idx[1]]
-            )
+            self.assertEqual(emitted[idx[0], idx[1]], vis[idx[0], idx[1]] * conf[idx[0], idx[1]])
 
     def test_sampling_clamps_out_of_range_without_nan(self):
         field = np.ones((2, 10, 10, 2), dtype=np.float32) * 3.0
-        out = ct.sample_dense_field(
-            field, np.array([-50.0, 50.0]), np.array([0.5, 0.5])
-        )
+        out = ct.sample_dense_field(field, np.array([-50.0, 50.0]), np.array([0.5, 0.5]))
         self.assertTrue(np.all(np.isfinite(out)))
         np.testing.assert_allclose(out, 3.0)
 
@@ -551,10 +502,7 @@ class ConfidenceAndSamplingTests(unittest.TestCase):
 class OutputWriterTests(unittest.TestCase):
     def _plan_and_data(self):
         run_dir = "/nonexistent/run"
-        frames = [
-            ct.SequenceFrame(i, i, f"/nonexistent/run/images/img_{i}.png")
-            for i in range(2)
-        ]
+        frames = [ct.SequenceFrame(i, i, f"/nonexistent/run/images/img_{i}.png") for i in range(2)]
         plan = ct.RunPlan(
             run_dir=run_dir,
             role="diffuse",
@@ -702,9 +650,7 @@ class ModuleAndCliTests(unittest.TestCase):
             code = ct.main([tmp, "--points", points, "--dry-run"])
             self.assertEqual(code, 0)
             # Missing role without --skip-missing is a clear failure.
-            doc2 = {
-                "frames": [{"frame_id": 0}, {"frame_id": 1, "image_diffuse": "a.png"}]
-            }
+            doc2 = {"frames": [{"frame_id": 0}, {"frame_id": 1, "image_diffuse": "a.png"}]}
             with open(os.path.join(tmp, "frames.json"), "w") as fh:
                 json.dump(doc2, fh)
             code = ct.main([tmp, "--points", points, "--dry-run"])
@@ -760,9 +706,7 @@ class ModuleAndCliTests(unittest.TestCase):
                 self.assertIn("--grid-cols", captured.getvalue())
                 self.assertIn("--grid-rows", captured.getvalue())
             # Both dimensions supplied works.
-            self.assertEqual(
-                ct.main([tmp, "--grid-cols", "4", "--grid-rows", "3", "--dry-run"]), 0
-            )
+            self.assertEqual(ct.main([tmp, "--grid-cols", "4", "--grid-rows", "3", "--dry-run"]), 0)
             # --grid-spacing alone is a valid alternative.
             self.assertEqual(ct.main([tmp, "--grid-spacing", "2", "2", "--dry-run"]), 0)
         finally:
@@ -805,9 +749,7 @@ class FullPipelineTests(unittest.TestCase):
     def _dense_field(self):
         # Identity at rotated position 0, linear motion afterwards.  Field is
         # already in "model output" space: [T, Hi, Wi, 2] / [T, Hi, Wi].
-        gy, gx = np.meshgrid(
-            np.arange(self.INF_H), np.arange(self.INF_W), indexing="ij"
-        )
+        gy, gx = np.meshgrid(np.arange(self.INF_H), np.arange(self.INF_W), indexing="ij")
         track = np.stack([gx, gy], axis=-1).astype(np.float32)
         track = np.repeat(track[None], self.T, axis=0).copy()
         for t in range(1, self.T):
@@ -857,9 +799,7 @@ class FullPipelineTests(unittest.TestCase):
             self.assertEqual([p["id"] for p in f0], ["q0", "q1"])
             self.assertEqual(f0[0]["x"], 4.0)  # reference frame: identity
             self.assertEqual(f0[0]["y"], 4.0)
-            self.assertEqual(
-                doc["provenance"]["coordinate_convention"], ct.PIXEL_CENTER
-            )
+            self.assertEqual(doc["provenance"]["coordinate_convention"], ct.PIXEL_CENTER)
             # Frame ids in output = fabsim ids, not sequence positions.
             self.assertEqual([f["frame_id"] for f in doc["frames"]], [10, 11, 12])
 
@@ -878,9 +818,7 @@ class FullPipelineTests(unittest.TestCase):
 
             # Dense NPZ written only when requested.
             dense_data = np.load(os.path.join(tmp, "dense.npz"))
-            self.assertEqual(
-                dense_data["track"].shape, (self.T, self.INF_H, self.INF_W, 2)
-            )
+            self.assertEqual(dense_data["track"].shape, (self.T, self.INF_H, self.INF_W, 2))
 
             # Re-export from the sampled NPZ without any inference.
             code = ct.main(
@@ -978,17 +916,13 @@ class FullPipelineTests(unittest.TestCase):
             with open(out) as fh:
                 doc = json.load(fh)
             self.assertEqual(len(doc["frames"]), self.T)
-            self.assertEqual(
-                [p["id"] for p in doc["frames"][0]["points"]], ["q0", "q1"]
-            )
+            self.assertEqual([p["id"] for p in doc["frames"][0]["points"]], ["q0", "q1"])
             # Reference frame identity preserved from the NPZ.
             self.assertEqual(doc["frames"][0]["points"][0]["x"], 4.0)
             self.assertEqual(doc["frames"][0]["points"][0]["y"], 4.0)
             # Motion preserved from the NPZ (2*2 inference px -> source px).
             sx = self.RUN_W / self.INF_W
-            self.assertAlmostEqual(
-                doc["frames"][2]["points"][0]["x"], 4.0 + 4.0 * sx, places=4
-            )
+            self.assertAlmostEqual(doc["frames"][2]["points"][0]["x"], 4.0 + 4.0 * sx, places=4)
         finally:
             shutil.rmtree(tmp)
 
@@ -1223,9 +1157,7 @@ class ProvenanceTests(unittest.TestCase):
                 "--inference-height",
                 "20",
             ]
-            with mock.patch.object(
-                ct, "run_inference", side_effect=RuntimeError("boom")
-            ):
+            with mock.patch.object(ct, "run_inference", side_effect=RuntimeError("boom")):
                 quiet, loud = io.StringIO(), io.StringIO()
                 with contextlib.redirect_stderr(quiet):
                     self.assertEqual(ct.main(argv), 1)

@@ -18,9 +18,7 @@ def _failing_import(error):
     "error",
     [
         ModuleNotFoundError("No module named 'tkinter'", name="tkinter"),
-        ImportError(
-            "libtk8.6.so: cannot open shared object file: No such file or directory"
-        ),
+        ImportError("libtk8.6.so: cannot open shared object file: No such file or directory"),
         ModuleNotFoundError("No module named 'serial'", name="serial"),
     ],
 )

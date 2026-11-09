@@ -53,9 +53,7 @@ def log_dir() -> Path:
     if sys.platform == "darwin":
         return _home() / "Library" / "Logs" / APP_DIR
 
-    return (
-        Path(os.environ.get("XDG_STATE_HOME") or _home() / ".local" / "state") / APP_DIR
-    )
+    return Path(os.environ.get("XDG_STATE_HOME") or _home() / ".local" / "state") / APP_DIR
 
 
 def packaged_default(name: str) -> Path:
@@ -126,9 +124,7 @@ def save_led_config(cfg: dict, directory: Path | None = None) -> Path:
     return save_json(LED_CONFIG_FILE, cfg, directory)
 
 
-def merge_led_config(
-    current: dict, pol_a_bits: list[int], pol_b_bits: list[int], diffuse_mask: int
-) -> dict:
+def merge_led_config(current: dict, pol_a_bits: list[int], pol_b_bits: list[int], diffuse_mask: int) -> dict:
     merged = dict(current)
     if list(current.get("pol_a_bits", [])) != list(pol_a_bits):
         merged.pop("light_azimuths_deg", None)

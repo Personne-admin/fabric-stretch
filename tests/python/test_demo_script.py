@@ -23,9 +23,7 @@ def script():
     return module
 
 
-def test_tracks_follow_the_actual_resize_factor_and_stale_fields_are_dropped(
-    script, tmp_path
-):
+def test_tracks_follow_the_actual_resize_factor_and_stale_fields_are_dropped(script, tmp_path):
     src = tmp_path / "src" / "warp_loading"
     syn.write_run(src, "loading", count=4)
     frames_doc = json.loads((src / "frames.json").read_text())
@@ -36,10 +34,7 @@ def test_tracks_follow_the_actual_resize_factor_and_stale_fields_are_dropped(
     (src / "frames.json").write_text(json.dumps(frames_doc))
     scale = 0.1234  # 320 px -> 39.49 -> 39 px, a different factor than the nominal one
     dst = tmp_path / "dst" / "warp_loading"
-    assert (
-        script.convert_run(src, dst, 3, scale, {"light_azimuths_deg": [0, 120, 240]})
-        == 3
-    )
+    assert script.convert_run(src, dst, 3, scale, {"light_azimuths_deg": [0, 120, 240]}) == 3
 
     first = dataset.load_frames(dst)[0]
     image = cv2.imread(str(dataset.image_path(dst, first["image_diffuse"])))
@@ -53,6 +48,4 @@ def test_tracks_follow_the_actual_resize_factor_and_stale_fields_are_dropped(
     assert point["x"] == pytest.approx((source["x"] + 0.5) * factor - 0.5, abs=1e-3)
     assert point["y"] == pytest.approx((source["y"] + 0.5) * factor - 0.5, abs=1e-3)
     assert kept["provenance"]["source_dimensions"] == [39, 39]
-    assert json.loads((dst / "session.json").read_text())["led_config"][
-        "light_azimuths_deg"
-    ] == [0, 120, 240]
+    assert json.loads((dst / "session.json").read_text())["led_config"]["light_azimuths_deg"] == [0, 120, 240]

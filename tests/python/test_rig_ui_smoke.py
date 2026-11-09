@@ -78,9 +78,7 @@ class FakeModule(types.ModuleType):
             "askstring",
             "askdirectory",
         }:
-            cls = MagicMock(
-                name=name, return_value=True if name == "askyesno" else None
-            )
+            cls = MagicMock(name=name, return_value=True if name == "askyesno" else None)
         else:
             cls = type(name, (FakeWidget,), {})
 
@@ -100,14 +98,8 @@ def _is_tk_dependent(name: str) -> bool:
 def fake_tk():
     import fabsim.rig
 
-    saved = {
-        n: m
-        for n, m in sys.modules.items()
-        if n.startswith("tkinter") or _is_tk_dependent(n)
-    }
-    saved_attrs = {
-        a: getattr(fabsim.rig, a) for a in ("ui", "stereo") if hasattr(fabsim.rig, a)
-    }
+    saved = {n: m for n, m in sys.modules.items() if n.startswith("tkinter") or _is_tk_dependent(n)}
+    saved_attrs = {a: getattr(fabsim.rig, a) for a in ("ui", "stereo") if hasattr(fabsim.rig, a)}
     for name in saved:
         del sys.modules[name]
 
@@ -124,9 +116,7 @@ def fake_tk():
     try:
         yield modules
     finally:
-        for name in [
-            n for n in sys.modules if n.startswith("tkinter") or _is_tk_dependent(n)
-        ]:
+        for name in [n for n in sys.modules if n.startswith("tkinter") or _is_tk_dependent(n)]:
             del sys.modules[name]
         for attr in ("ui", "stereo"):
             if hasattr(fabsim.rig, attr):
@@ -205,16 +195,9 @@ def test_simulated_measurement_end_to_end(app, tmp_path, fake_tk):
 
     run = app.project_dir / "cloth" / "warp_loading"
     meta = json.loads((run / "session.json").read_text())
-    assert (
-        meta["status"] == "complete"
-        and meta["simulated"] is True
-        and meta["frames_written"] == 3
-    )
+    assert meta["status"] == "complete" and meta["simulated"] is True and meta["frames_written"] == 3
     assert len(list((run / "images").glob("*_ps_*.png"))) == 9
-    assert any(
-        "camera exposure is 20 ms or higher" in c.args[1]
-        for c in app.log_text.insert.call_args_list
-    )
+    assert any("camera exposure is 20 ms or higher" in c.args[1] for c in app.log_text.insert.call_args_list)
 
     app.lbl_progress.config.reset_mock()
     app._run_measurement()
@@ -265,9 +248,7 @@ def test_changing_set_a_clears_the_azimuths_and_warns(app, tmp_path):
     app.update_led_mapping([0, 2, 4], [], 0)
     saved = json.loads((tmp_path / "config" / config.LED_CONFIG_FILE).read_text())
     assert "light_azimuths_deg" not in saved
-    assert any(
-        "azimuths were cleared" in c.args[1] for c in app.log_text.insert.call_args_list
-    )
+    assert any("azimuths were cleared" in c.args[1] for c in app.log_text.insert.call_args_list)
 
 
 def test_led_identifier_role_mapping(fake_tk):
@@ -300,14 +281,10 @@ def test_led_identifier_rejects_incomplete_sets(fake_tk):
 
     # A2 and A3 without A1 would be captured as ps_1/ps_2 and mislabel the LEDs.
     with pytest.raises(ValueError, match="Set A.*A1"):
-        led_identifier.roles_to_mapping(
-            {1: "unused", 2: "pol_a_1", 3: "pol_a_2", 4: "diffuse"}
-        )
+        led_identifier.roles_to_mapping({1: "unused", 2: "pol_a_1", 3: "pol_a_2", 4: "diffuse"})
 
     with pytest.raises(ValueError, match="Set B"):
-        led_identifier.roles_to_mapping(
-            {0: "pol_a_0", 1: "pol_a_1", 2: "pol_a_2", 3: "pol_b_0"}
-        )
+        led_identifier.roles_to_mapping({0: "pol_a_0", 1: "pol_a_1", 2: "pol_a_2", 3: "pol_b_0"})
 
 
 def test_loading_a_preset_keeps_the_capture_setup_it_does_not_define(app, fake_tk):
@@ -318,11 +295,7 @@ def test_loading_a_preset_keeps_the_capture_setup_it_does_not_define(app, fake_t
     app._presets[0] = {"name": "legacy", "count": 5}  # no capture setup keys
     app._load_preset()
     assert app.count_var.get() == 5
-    assert (
-        app.mode_var.get() == "sequential"
-        and app.polarization_var.get()
-        and app.include_diffuse_var.get()
-    )
+    assert app.mode_var.get() == "sequential" and app.polarization_var.get() and app.include_diffuse_var.get()
 
     app._presets[0] = {
         "name": "full",
@@ -369,25 +342,18 @@ def test_run_refuses_uncalibrated_light_directions(app, fake_tk, tmp_path):
     app._toggle_camera()
     app.project_dir = tmp_path
     app.mode_var.set("sequential")
-    app.led_config = {
-        k: v for k, v in app.led_config.items() if k != "light_azimuths_deg"
-    }
+    app.led_config = {k: v for k, v in app.led_config.items() if k != "light_azimuths_deg"}
 
     app._run_measurement()
     assert app.runner is None
-    assert (
-        "Calibrate Light Angles"
-        in fake_tk["tkinter.messagebox"].showerror.call_args.args[1]
-    )
+    assert "Calibrate Light Angles" in fake_tk["tkinter.messagebox"].showerror.call_args.args[1]
 
 
 def test_light_calibration_geometry(fake_tk):
     from fabsim.rig.ui.light_calibration import shadow_to_light_azimuth
 
     assert shadow_to_light_azimuth((10, 10), (20, 10)) == pytest.approx(180.0)
-    assert shadow_to_light_azimuth((10, 10), (10, 20)) == pytest.approx(
-        90.0
-    )  # shadow down -> light up
+    assert shadow_to_light_azimuth((10, 10), (10, 20)) == pytest.approx(90.0)  # shadow down -> light up
     assert shadow_to_light_azimuth((10, 10), (0, 10)) == pytest.approx(0.0)
 
 
@@ -401,22 +367,17 @@ def test_ps_tab_loads_a_run_and_previews(app, fake_tk, tmp_path):
     tab._preview_current()
     pump(
         app,
-        lambda: tab.canvas_alb.show_image is not None
-        and tab.canvas_alb._image is not None,
+        lambda: tab.canvas_alb.show_image is not None and tab.canvas_alb._image is not None,
     )
 
     tab._process_all()
     pump(
         app,
-        lambda: (run / "ps_output" / "ps_manifest.json").exists()
-        and tab._cancel_event is None,
+        lambda: (run / "ps_output" / "ps_manifest.json").exists() and tab._cancel_event is None,
     )
 
     manifest = json.loads((run / "ps_output" / "ps_manifest.json").read_text())
-    assert (
-        manifest["solver"] == "fabsim.photometric.solve"
-        and len(manifest["frames"]) == 2
-    )
+    assert manifest["solver"] == "fabsim.photometric.solve" and len(manifest["frames"]) == 2
 
     assert (run / "ps_output" / "img_0001_normals.png").is_file()
 
@@ -424,9 +385,7 @@ def test_ps_tab_loads_a_run_and_previews(app, fake_tk, tmp_path):
 def test_ps_tab_reports_a_run_without_azimuths(app, fake_tk, tmp_path):
     from test_rig_ps_process import LED, write_run
 
-    run, _, _ = write_run(
-        tmp_path, led={k: v for k, v in LED.items() if k != "light_azimuths_deg"}
-    )
+    run, _, _ = write_run(tmp_path, led={k: v for k, v in LED.items() if k != "light_azimuths_deg"})
 
     app.ps_tab._load_run_folder(run)
     assert app.ps_tab.run is None

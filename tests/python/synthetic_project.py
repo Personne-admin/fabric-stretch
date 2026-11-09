@@ -135,16 +135,12 @@ def write_run(
                 }
             )
             forces.append({"index": 2 * i + 2, "status": "timeout", "force_n": None})
-    (path / "frames.json").write_text(
-        json.dumps({"clamp_width_m": CLAMP_WIDTH_M, "frames": frames})
-    )
+    (path / "frames.json").write_text(json.dumps({"clamp_width_m": CLAMP_WIDTH_M, "frames": frames}))
     (path / "force.json").write_text(json.dumps({"forces": forces}))
     (path / "session.json").write_text(
         json.dumps({"sample_id": "synthetic", "branch": branch, "count": count})
     )
-    (path / "tracks.json").write_text(
-        json.dumps({"provenance": {"reference_frame": 0}, "frames": tracked})
-    )
+    (path / "tracks.json").write_text(json.dumps({"provenance": {"reference_frame": 0}, "frames": tracked}))
 
 
 def make_project(root: Path, orientations=("warp",), **kwargs) -> Path:

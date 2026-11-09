@@ -97,9 +97,7 @@ def grid_frames(track_file: Path):
 
 
 def _xy(points) -> np.ndarray:
-    return np.array(
-        [[points[i]["x"], points[i]["y"]] for i in range(len(points))], dtype=np.float32
-    )
+    return np.array([[points[i]["x"], points[i]["y"]] for i in range(len(points))], dtype=np.float32)
 
 
 def largest_rectangle(mask: np.ndarray):
@@ -137,11 +135,7 @@ def register_references(loading_image: np.ndarray, release_image: np.ndarray):
     if da is None or db is None:
         raise ValueError("reference images have no matchable material features")
 
-    matches = [
-        m
-        for m, n in cv2.BFMatcher().knnMatch(da, db, k=2)
-        if m.distance < 0.7 * n.distance
-    ]
+    matches = [m for m, n in cv2.BFMatcher().knnMatch(da, db, k=2) if m.distance < 0.7 * n.distance]
     if len(matches) < 30:
         raise ValueError("reference images do not establish a shared physical patch")
 
@@ -152,9 +146,7 @@ def register_references(loading_image: np.ndarray, release_image: np.ndarray):
         raise ValueError("reference image registration failed")
 
     inliers = source[mask.ravel() != 0]
-    area = cv2.contourArea(cv2.convexHull(inliers)) / (
-        loading_image.shape[0] * loading_image.shape[1]
-    )
+    area = cv2.contourArea(cv2.convexHull(inliers)) / (loading_image.shape[0] * loading_image.shape[1])
 
     if len(inliers) < 30 or area < 0.25:
         raise ValueError("reference matches do not cover enough of the physical patch")
@@ -178,9 +170,7 @@ def grid_coordinates(points, cols, rows, xy):
     )
 
     target = np.float32([[0, 0], [cols - 1, 0], [cols - 1, rows - 1], [0, rows - 1]])
-    guess = cv2.perspectiveTransform(
-        flat[None], cv2.getPerspectiveTransform(corners, target)
-    )[0]
+    guess = cv2.perspectiveTransform(flat[None], cv2.getPerspectiveTransform(corners, target))[0]
 
     gx, gy = guess[:, 0], guess[:, 1]
     grid = _xy(points)
@@ -207,12 +197,8 @@ def grid_coordinates(points, cols, rows, xy):
         error = flat - predicted
         det = du[:, 0] * dv[:, 1] - du[:, 1] * dv[:, 0]
         safe = np.where(np.abs(det) > 1e-6, det, 1.0)
-        gx += np.clip(
-            (error[:, 0] * dv[:, 1] - error[:, 1] * dv[:, 0]) / safe, -1.0, 1.0
-        )
-        gy += np.clip(
-            (du[:, 0] * error[:, 1] - du[:, 1] * error[:, 0]) / safe, -1.0, 1.0
-        )
+        gx += np.clip((error[:, 0] * dv[:, 1] - error[:, 1] * dv[:, 0]) / safe, -1.0, 1.0)
+        gy += np.clip((du[:, 0] * error[:, 1] - du[:, 1] * error[:, 0]) / safe, -1.0, 1.0)
 
     return np.stack((gx, gy), axis=-1).reshape(*shape, 2)
 
@@ -266,12 +252,8 @@ def loading_map(points, cols: int, tile: Tile, shape) -> np.ndarray:
     return _checked(mapping, shape, "tile")
 
 
-def release_map(
-    points, cols: int, rows: int, release_grid: np.ndarray, shape
-) -> np.ndarray:
-    return _checked(
-        sample_grid(points, cols, rows, release_grid), shape, "shared atlas"
-    )
+def release_map(points, cols: int, rows: int, release_grid: np.ndarray, shape) -> np.ndarray:
+    return _checked(sample_grid(points, cols, rows, release_grid), shape, "shared atlas")
 
 
 def warp(image: np.ndarray, mapping: np.ndarray) -> np.ndarray:
@@ -303,9 +285,7 @@ def stretch_ratio(points, reference, cols: int, tile: Tile, axis: str):
             else:
                 continue
 
-            a = np.array(
-                [points[j]["x"] - points[i]["x"], points[j]["y"] - points[i]["y"]]
-            )
+            a = np.array([points[j]["x"] - points[i]["x"], points[j]["y"] - points[i]["y"]])
 
             b = np.array(
                 [
@@ -334,9 +314,7 @@ class RunData:
     tracks: dict[int, dict]
     cols: int
     rows: int
-    frames: list[
-        dict
-    ]  # tracked frames with a diffuse image and a valid force reading, chronological
+    frames: list[dict]  # tracked frames with a diffuse image and a valid force reading, chronological
     forces: dict[int, dict]
     reference_id: int
     reference_image: np.ndarray
@@ -362,11 +340,7 @@ def load_run(run: dataset.Run) -> RunData:
     for position, frame in enumerate(frames_doc["frames"]):
         fid = dataset.frame_id(frame, position)
         image = frame.get("image_diffuse")
-        if (
-            fid not in tracks
-            or not image
-            or not dataset.image_path(path, image).is_file()
-        ):
+        if fid not in tracks or not image or not dataset.image_path(path, image).is_file():
             untracked += 1
         elif dataset.force_for_frame(frame, forces) is None:
             no_force.append(f"{run.branch} frame {fid}: no valid force reading")
@@ -375,14 +349,10 @@ def load_run(run: dataset.Run) -> RunData:
 
     skipped = list(no_force)
     if untracked:
-        skipped.append(
-            f"{run.branch}: {untracked} frame(s) without tracking or diffuse image"
-        )
+        skipped.append(f"{run.branch}: {untracked} frame(s) without tracking or diffuse image")
 
     if not usable:
-        raise ValueError(
-            f"{run.name}: no tracked diffuse frames with a valid force reading"
-        )
+        raise ValueError(f"{run.name}: no tracked diffuse frames with a valid force reading")
 
     if run.branch == "loading":
         reference = next((f for f in usable if f["frame_id"] == tracker_ref), None)
@@ -415,12 +385,7 @@ def _usable_points(tracks: dict[int, dict], shape) -> np.ndarray:
     n = len(next(iter(tracks.values())))
     ok = np.ones(n, dtype=bool)
     for points in tracks.values():
-        data = np.array(
-            [
-                [points[i]["x"], points[i]["y"], points[i]["confidence"]]
-                for i in range(n)
-            ]
-        )
+        data = np.array([[points[i]["x"], points[i]["y"], points[i]["confidence"]] for i in range(n)])
         ok &= (
             (data[:, 2] >= CONFIDENCE)
             & (data[:, 0] >= 0)
@@ -436,30 +401,20 @@ def _common_cells(loading: RunData, release: RunData, H: np.ndarray) -> np.ndarr
     cols, rows = loading.cols, loading.rows
     rr, cc = np.meshgrid(np.arange(rows - 1), np.arange(cols - 1), indexing="ij")
     first = (rr * cols + cc).reshape(-1)
-    ids = np.stack(
-        [first, first + 1, first + cols, first + cols + 1], axis=1
-    )  # (cells, 4)
+    ids = np.stack([first, first + 1, first + cols, first + cols + 1], axis=1)  # (cells, 4)
 
     xy = _xy(loading.tracks[loading.reference_id])[ids]  # (cells, 4, 2)
     target = cv2.perspectiveTransform(xy.reshape(1, -1, 2), H).reshape(xy.shape)
     grid = grid_coordinates(release.tracks[release.reference_id], cols, rows, target)
     gx, gy = grid[..., 0], grid[..., 1]
-    inside = ~(
-        (grid < 0).any(axis=(1, 2))
-        | (gx >= cols - 1).any(axis=1)
-        | (gy >= rows - 1).any(axis=1)
-    )
+    inside = ~((grid < 0).any(axis=(1, 2)) | (gx >= cols - 1).any(axis=1) | (gy >= rows - 1).any(axis=1))
 
     ix = np.clip(gx.astype(int), 0, cols - 2)
     iy = np.clip(gy.astype(int), 0, rows - 2)
-    corner = (
-        iy * cols + ix
-    )  # (cells, 4) top-left point of the release cell under each corner
+    corner = iy * cols + ix  # (cells, 4) top-left point of the release cell under each corner
 
     release_ok = _usable_points(release.tracks, release.reference_image.shape)
-    touched = np.stack(
-        [corner, corner + 1, corner + cols, corner + cols + 1], axis=-1
-    ).reshape(len(ids), -1)
+    touched = np.stack([corner, corner + 1, corner + cols, corner + cols + 1], axis=-1).reshape(len(ids), -1)
 
     loading_ok = _usable_points(loading.tracks, loading.reference_image.shape)
     valid = inside & loading_ok[ids].all(axis=1) & release_ok[touched].all(axis=1)
@@ -475,9 +430,7 @@ class Registration:
     axis: str
     homography: np.ndarray
     loading_reference: dict
-    release_grid: (
-        np.ndarray
-    )  # (atlas h, w, 2) Release grid coordinates of every atlas pixel
+    release_grid: np.ndarray  # (atlas h, w, 2) Release grid coordinates of every atlas pixel
     error_p95_px: float
     loading_id: int
     release_id: int
@@ -509,9 +462,7 @@ class Registration:
 
     def stretch(self, run: RunData, points) -> float:
         if run.branch == "loading":
-            return stretch_ratio(
-                points, self.loading_reference, self.cols, self.tile, self.axis
-            )
+            return stretch_ratio(points, self.loading_reference, self.cols, self.tile, self.axis)
 
         current = sample_grid(points, self.cols, self.rows, self.vertex_grid)
 
@@ -520,9 +471,7 @@ class Registration:
 
 def register_orientation(loading: RunData, release: RunData) -> Registration:
     if (loading.cols, loading.rows) != (release.cols, release.rows):
-        raise ValueError(
-            "Loading/Release tracker topology differs; shared atlas unavailable"
-        )
+        raise ValueError("Loading/Release tracker topology differs; shared atlas unavailable")
 
     cols, rows = loading.cols, loading.rows
     H = register_references(loading.reference_image, release.reference_image)
@@ -541,10 +490,7 @@ def register_orientation(loading: RunData, release: RunData) -> Registration:
         (max(nc + 1, int(np.ceil(x1 - x0))), max(nr + 1, int(np.ceil(y1 - y0)))),
     )
     last = loading.tracks[loading.frames[-1]["frame_id"]]
-    ratios = {
-        axis: stretch_ratio(last, load_ref, cols, tile, axis)
-        for axis in ("horizontal", "vertical")
-    }
+    ratios = {axis: stretch_ratio(last, load_ref, cols, tile, axis) for axis in ("horizontal", "vertical")}
     axis = max(ratios, key=ratios.get)
 
     xx = np.linspace(0, nc, tile.size[0], dtype=np.float32)
@@ -561,9 +507,7 @@ def register_orientation(loading: RunData, release: RunData) -> Registration:
         + (1 - u) * v * ref_xy[ids + cols]
         + u * v * ref_xy[ids + cols + 1]
     )
-    release_xy = cv2.perspectiveTransform(canonical.reshape(1, -1, 2), H).reshape(
-        canonical.shape
-    )
+    release_xy = cv2.perspectiveTransform(canonical.reshape(1, -1, 2), H).reshape(canonical.shape)
     release_grid = grid_coordinates(release_ref, cols, rows, release_xy)
     if (
         np.any(release_grid < 0)
@@ -571,14 +515,10 @@ def register_orientation(loading: RunData, release: RunData) -> Registration:
         or np.any(release_grid[..., 1] > rows - 1)
     ):
         raise ValueError("shared atlas leaves Release reference tracker grid")
-    reference_error = np.linalg.norm(
-        sample_grid(release_ref, cols, rows, release_grid) - release_xy, axis=-1
-    )
+    reference_error = np.linalg.norm(sample_grid(release_ref, cols, rows, release_grid) - release_xy, axis=-1)
     error_p95 = float(np.percentile(reference_error, 95))
     if error_p95 > MAX_REFERENCE_ERROR_PX:
-        raise ValueError(
-            f"Release atlas registration exceeds {MAX_REFERENCE_ERROR_PX:g} px reference error"
-        )
+        raise ValueError(f"Release atlas registration exceeds {MAX_REFERENCE_ERROR_PX:g} px reference error")
 
     # Release stretch is measured on the lattice of cell vertices against the Loading reference.
     vx = np.rint(np.linspace(0, tile.size[0] - 1, nc + 1)).astype(int)
@@ -604,9 +544,7 @@ def register_orientation(loading: RunData, release: RunData) -> Registration:
 class ForceTare:
     offset_n: float
     zero_counts: dict[str, float | None]  # of the reference reading of each run
-    states: int = (
-        1  # Loading states the offset was fitted to (1 = the reference reading itself)
-    )
+    states: int = 1  # Loading states the offset was fitted to (1 = the reference reading itself)
 
     @property
     def zero_counts_differ(self) -> bool:
@@ -656,9 +594,7 @@ def measure_tare(
         if stretch > TARE_MAX_STRETCH:
             break
 
-        window.append(
-            (stretch, float(dataset.force_for_frame(frame, loading.forces)["force_n"]))
-        )
+        window.append((stretch, float(dataset.force_for_frame(frame, loading.forces)["force_n"])))
 
     if states <= 1 or len(window) < 3:
         return ForceTare(float(reading["force_n"]), zero, 1)
@@ -688,9 +624,7 @@ def _ranks(values: np.ndarray) -> np.ndarray:
 
 
 def spearman(x, y) -> float:
-    a, b = _ranks(np.asarray(x, dtype=np.float64)), _ranks(
-        np.asarray(y, dtype=np.float64)
-    )
+    a, b = _ranks(np.asarray(x, dtype=np.float64)), _ranks(np.asarray(y, dtype=np.float64))
     if a.std() < 1e-12 or b.std() < 1e-12:
         return 0.0
 
@@ -762,9 +696,7 @@ class PsSetup:
 
 class PsAtlas(NamedTuple):
     albedo: np.ndarray  # float RGB, multiplied by the exposure gain
-    normals: (
-        np.ndarray | None
-    )  # float unit vectors, tilt removed; None when not requested
+    normals: np.ndarray | None  # float unit vectors, tilt removed; None when not requested
     gains: tuple[float, float, float]
     tilt_deg: float | None  # tilt of the mean normal before the correction
 
@@ -797,9 +729,7 @@ def prepare_ps(
     for run in (loading, release):
         unlisted = [f["frame_id"] for f in run.frames if not dataset.has_ps(f)]
         if unlisted:
-            raise ValueError(
-                f"{run.path.name}: {len(unlisted)} state(s) without photometric-stereo images"
-            )
+            raise ValueError(f"{run.path.name}: {len(unlisted)} state(s) without photometric-stereo images")
 
         intact = []
         for frame in run.frames:
@@ -807,9 +737,7 @@ def prepare_ps(
             if problem is None:
                 intact.append(frame)
             elif frame["frame_id"] == run.reference_id:
-                raise ValueError(
-                    f"{run.path.name}: reference frame {frame['frame_id']}: {problem}"
-                )
+                raise ValueError(f"{run.path.name}: reference frame {frame['frame_id']}: {problem}")
             else:
                 damaged.append((run, frame, problem))
 
@@ -821,9 +749,7 @@ def prepare_ps(
             )
 
     cfg = ph.load_light_config(led_config, session=dataset.load_session(loading.path))
-    reference = ps_frames.measure_reference(
-        loading.path, dataset.load_frames(loading.path), cfg
-    )
+    reference = ps_frames.measure_reference(loading.path, dataset.load_frames(loading.path), cfg)
 
     if not track_gains:
         reference = replace(reference, track_gains=False)
@@ -838,9 +764,7 @@ def ps_atlas(
     mapping: np.ndarray,
     normals: bool = True,
 ) -> PsAtlas:
-    ps = ph.read_ps_gray(
-        [dataset.image_path(run.path, frame[k]) for k in dataset.PS_KEYS]
-    )
+    ps = ph.read_ps_gray([dataset.image_path(run.path, frame[k]) for k in dataset.PS_KEYS])
 
     diffuse = ph.read_rgb_linear(dataset.image_path(run.path, frame["image_diffuse"]))
     if diffuse.shape[:2] != ps.shape[:2]:
@@ -848,9 +772,7 @@ def ps_atlas(
 
     light = ps_frames.frame_light(reference, ps)
     albedo_gray, normal = ph.solve(ps, light)
-    albedo = warp(
-        ph.color_albedo(albedo_gray, diffuse) * reference.exposure_gain, mapping
-    )
+    albedo = warp(ph.color_albedo(albedo_gray, diffuse) * reference.exposure_gain, mapping)
 
     gains = tuple(float(g) for g in light.gains)
     if not normals:
@@ -858,9 +780,7 @@ def ps_atlas(
 
     normal = warp(normal, mapping)
     length = np.linalg.norm(normal, axis=-1, keepdims=True)
-    normal = np.where(
-        length > 1e-6, normal / np.maximum(length, 1e-6), np.float32([0.0, 0.0, 1.0])
-    )
+    normal = np.where(length > 1e-6, normal / np.maximum(length, 1e-6), np.float32([0.0, 0.0, 1.0]))
 
     normal, tilt = ph.remove_normal_tilt(normal)
 
@@ -889,9 +809,7 @@ def measure_albedo_scale(
         if seams is not None:
             from . import tiling as tiling_mod
 
-            wide = (
-                2 * peak
-            )  # headroom, so that the tile is measured before anything clips
+            wide = 2 * peak  # headroom, so that the tile is measured before anything clips
 
             tile = tiling_mod.apply_tiling(ph.encode_albedo_u16(albedo, wide), seams)
             peak = max(peak, clip_threshold(ph.decode_albedo_u16(tile, wide)))
@@ -903,8 +821,7 @@ def measure_albedo_scale(
 
 def clipped_fraction(albedo_u16: np.ndarray) -> float:
     return float(
-        np.count_nonzero((albedo_u16 == 65535).any(axis=-1))
-        / (albedo_u16.shape[0] * albedo_u16.shape[1])
+        np.count_nonzero((albedo_u16 == 65535).any(axis=-1)) / (albedo_u16.shape[0] * albedo_u16.shape[1])
     )
 
 
@@ -956,17 +873,13 @@ def build_orientation(
     reference = None
     if ps:
         try:
-            reference, damaged = prepare_ps(
-                loading, release, led_config, ps_gains == "per-state"
-            )
+            reference, damaged = prepare_ps(loading, release, led_config, ps_gains == "per-state")
         except (ValueError, OSError) as exc:
             report["ps_skipped"] = str(exc)
         else:
             # layers are all-or-nothing in a package: a state with unusable PS images is left out
             for run, frame, _ in damaged:
-                run.frames = [
-                    f for f in run.frames if f["frame_id"] != frame["frame_id"]
-                ]
+                run.frames = [f for f in run.frames if f["frame_id"] != frame["frame_id"]]
             if damaged:
                 report["dropped_states"] = [
                     {"branch": run.branch, "frame_id": frame["frame_id"], "reason": why}
@@ -1018,9 +931,7 @@ def build_orientation(
             if untiled is not None:
                 write_png(untiled / state["texture"], texture)
         branches[run.branch] = states
-    residual = next(
-        s for s in branches["release"] if s["frame_id"] == release.reference_id
-    )["stretch_ratio"]
+    residual = next(s for s in branches["release"] if s["frame_id"] == release.reference_id)["stretch_ratio"]
     report["states"] = {b: len(s) for b, s in branches.items()}
     report["stretch_range"] = {
         b: [
@@ -1063,9 +974,7 @@ def build_orientation(
         started = time.perf_counter()
         try:
             tiles, tiling_meta, details = tiling_mod.tile_states(textures, tiling)
-        except (
-            ValueError
-        ) as exc:  # parameters do not fit this atlas: the orientation stays untiled
+        except ValueError as exc:  # parameters do not fit this atlas: the orientation stays untiled
             report["tiling_skipped"] = str(exc)
         else:
             for (_, _, state), tile in zip(jobs, tiles, strict=True):
@@ -1114,9 +1023,7 @@ def build_orientation(
                 from . import tiling as tiling_mod
 
                 albedo_tiled = tiling_mod.apply_tiling(albedo, seams)
-                clipped["tiled"] = max(
-                    clipped.get("tiled", 0.0), clipped_fraction(albedo_tiled)
-                )
+                clipped["tiled"] = max(clipped.get("tiled", 0.0), clipped_fraction(albedo_tiled))
                 write_png(tiled / state["albedo"], albedo_tiled)
                 write_png(
                     tiled / state["normal"],
@@ -1176,9 +1083,7 @@ def build(
     ps_gains: str = "per-state",
 ) -> dict:
     if ps_gains not in ("per-state", "reference"):
-        raise ValueError(
-            f"ps_gains must be 'per-state' or 'reference', not {ps_gains!r}"
-        )
+        raise ValueError(f"ps_gains must be 'per-state' or 'reference', not {ps_gains!r}")
     if tiled_out is not None and tiling is None:
         raise ValueError("tiled_out needs a tiling configuration")
     outputs = [p for p in (tiled_out, untiled_out) if p is not None]
@@ -1186,9 +1091,7 @@ def build(
         raise ValueError("no output directory")
     for path in outputs:
         if path.exists() and any(path.iterdir()) and not force:
-            raise FileExistsError(
-                f"{path} exists and is not empty (use --force to overwrite)"
-            )
+            raise FileExistsError(f"{path} exists and is not empty (use --force to overwrite)")
     grouped = dataset.discover_orientations(project, orientations)
     report: dict = {
         "project": project.name,
@@ -1198,9 +1101,7 @@ def build(
     }
     ignored = dataset.ignored_run_folders(project)
     if ignored:
-        report["ignored_run_folders"] = [
-            {"name": name, "reason": reason} for name, reason in ignored
-        ]
+        report["ignored_run_folders"] = [{"name": name, "reason": reason} for name, reason in ignored]
     for name in orientations or []:
         if name not in grouped:
             report["orientations"][name] = {
@@ -1211,9 +1112,7 @@ def build(
         untiled = None if untiled_out is None else untiled_out / orientation
         tiled = None if tiled_out is None else tiled_out / orientation
         diagnostics = None if diagnostics_out is None else diagnostics_out / orientation
-        _clear(
-            untiled, tiled, diagnostics
-        )  # an earlier build must not outlive a failure now
+        _clear(untiled, tiled, diagnostics)  # an earlier build must not outlive a failure now
         missing = [b for b in dataset.BRANCHES if b not in runs]
         if missing:
             report["orientations"][orientation] = {
@@ -1237,9 +1136,7 @@ def build(
                 ps_gains,
             )
             for directory, metadata in written.items():
-                (directory / "package.json").write_text(
-                    json.dumps(metadata, indent=2) + "\n"
-                )
+                (directory / "package.json").write_text(json.dumps(metadata, indent=2) + "\n")
         except (OSError, KeyError, ValueError) as exc:
             _clear(untiled, tiled, diagnostics)
             report["orientations"][orientation] = {
@@ -1295,12 +1192,8 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="untiled package (default: <project>/material_package_v3_untiled)",
     )
-    parser.add_argument(
-        "--no-tiling", action="store_true", help="write only the untiled package"
-    )
-    parser.add_argument(
-        "--no-ps", action="store_true", help="skip albedo and normal layers"
-    )
+    parser.add_argument("--no-tiling", action="store_true", help="write only the untiled package")
+    parser.add_argument("--no-ps", action="store_true", help="skip albedo and normal layers")
     parser.add_argument(
         "--ps-gains",
         choices=("per-state", "reference"),
@@ -1333,12 +1226,8 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DIR",
         help="also write tiling previews to DIR/<orientation>/",
     )
-    parser.add_argument(
-        "--force", action="store_true", help="overwrite non-empty output folders"
-    )
-    tiling = parser.add_argument_group(
-        "tiling (MATLAB findTile port, see docs/texture_tiling.md)"
-    )
+    parser.add_argument("--force", action="store_true", help="overwrite non-empty output folders")
+    tiling = parser.add_argument_group("tiling (MATLAB findTile port, see docs/texture_tiling.md)")
     tiling.add_argument(
         "--tiling-window-size",
         type=int,
@@ -1387,9 +1276,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"{args.project} is not a directory")
     if args.tiling_guidance and min(args.tiling_guidance) < 0:
         parser.error("--tiling-guidance: state indices must not be negative")
-    tiled = (
-        None if args.no_tiling else (args.out or args.project / "material_package_v3")
-    )
+    tiled = None if args.no_tiling else (args.out or args.project / "material_package_v3")
     untiled = args.untiled_out or args.project / "material_package_v3_untiled"
     try:
         report = build(
@@ -1420,16 +1307,12 @@ def main(argv: list[str] | None = None) -> int:
         built += 1
         notes = [k for k in ("ps_skipped", "tiling_skipped") if k in entry]
         counts = ", ".join(f"{n} {b}" for b, n in entry["states"].items())
-        print(
-            f"{name}: {counts} states, release residual stretch {entry['release_residual_stretch']:.4f}"
-        )
+        print(f"{name}: {counts} states, release residual stretch {entry['release_residual_stretch']:.4f}")
         for key in notes:
             print(f"  {key.replace('_', ' ')}: {entry[key]}")
         for text in entry["warnings"]:
             print(f"  warning: {text}")
-    print(
-        f"reports: {', '.join(str(p / 'build_report.json') for p in (tiled, untiled) if p)}"
-    )
+    print(f"reports: {', '.join(str(p / 'build_report.json') for p in (tiled, untiled) if p)}")
 
     return 0 if built else 1
 

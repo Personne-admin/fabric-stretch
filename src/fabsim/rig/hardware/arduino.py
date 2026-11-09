@@ -17,7 +17,6 @@ class ControllerError(RuntimeError):
 
 
 class ArduinoController:
-
     def __init__(self, port_factory: Callable[..., object] | None = None):
         self._port_factory = port_factory
         self.port = None
@@ -44,9 +43,7 @@ class ArduinoController:
 
         return [p.device for p in serial.tools.list_ports.comports()]
 
-    def connect(
-        self, port_name: str, baud: int = protocol.BAUD, settle_s: float = 2.0
-    ) -> None:
+    def connect(self, port_name: str, baud: int = protocol.BAUD, settle_s: float = 2.0) -> None:
         with self._conn_lock:
             self.disconnect()
             factory = self._port_factory
@@ -59,9 +56,7 @@ class ArduinoController:
             self.port.reset_input_buffer()
             self._rx_buf = ""
             self._stop_reader.clear()
-            self._reader = threading.Thread(
-                target=self._read_loop, name="serial-reader", daemon=True
-            )
+            self._reader = threading.Thread(target=self._read_loop, name="serial-reader", daemon=True)
             self._reader.start()
         log.info("Connected to %s", port_name)
 
@@ -204,9 +199,7 @@ class ArduinoController:
         self.set_power(0)
 
     @contextlib.contextmanager
-    def lights(
-        self, mask: int, power: int, log_fn: Callable[[str], None] | None = None
-    ) -> Iterator[None]:
+    def lights(self, mask: int, power: int, log_fn: Callable[[str], None] | None = None) -> Iterator[None]:
         try:
             self.set_power(power)
             if not self.wait_power_ack(0.5):

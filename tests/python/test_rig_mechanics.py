@@ -56,9 +56,7 @@ def test_move_duration_follows_the_firmware_timer():
     assert mechanics.move_duration_s(0, 1) == pytest.approx(32 * 32e-6)
     assert mechanics.move_duration_s(8000, 1) == pytest.approx(8001 * 1.024e-3)
     assert mechanics.move_duration_s(-8000, 2) == pytest.approx(8001 * 0.512e-3)
-    assert mechanics.tick_period_us(1000) == pytest.approx(
-        1.0
-    )  # the firmware clamps at 2 counts
+    assert mechanics.tick_period_us(1000) == pytest.approx(1.0)  # the firmware clamps at 2 counts
 
 
 def test_every_move_travels_one_command_step_more_than_commanded():

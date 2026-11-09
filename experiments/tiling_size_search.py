@@ -41,12 +41,8 @@ def sample(rng, orientation, H, W):
     area_w = rng.randrange(60, 520, 2)
     shift = rng.choice([0, 4, 8, 12, 20, 30])
     idist = rng.choice([1, 2, 3])
-    wh = rng.randrange(
-        8, max(12, min(90, int(area_h * 0.55))), 2
-    )  # height of top/bottom windows
-    wv = rng.randrange(
-        8, max(12, min(120, int(area_w * 0.45))), 2
-    )  # width of left/right windows
+    wh = rng.randrange(8, max(12, min(90, int(area_h * 0.55))), 2)  # height of top/bottom windows
+    wv = rng.randrange(8, max(12, min(120, int(area_w * 0.45))), 2)  # width of left/right windows
     wt, wl = wh // 2, wv // 2
     top_lo, left_lo = idist + wt, idist + wl
     top_hi = H - area_h - shift - idist - wh
@@ -113,9 +109,7 @@ if __name__ == "__main__":
     picks, _ = load_picks(Path(a.package))
     H, W = picks[0].shape[:2]
     rng = random.Random(a.seed)
-    cands = [
-        c for c in (sample(rng, a.orientation, H, W) for _ in range(a.n * 3)) if c
-    ][: a.n]
+    cands = [c for c in (sample(rng, a.orientation, H, W) for _ in range(a.n * 3)) if c][: a.n]
     t0 = time.perf_counter()
     done = 0
     with (

@@ -24,9 +24,7 @@ def test_rgb_plan_is_one_shot_with_the_typed_mask():
 
 
 def test_sequential_plan_orders_diffuse_then_set_a_then_set_b():
-    s = MeasurementSettings(
-        capture_mode="sequential", include_diffuse=True, polarization=True
-    )
+    s = MeasurementSettings(capture_mode="sequential", include_diffuse=True, polarization=True)
 
     assert session.build_capture_plan(s, LED) == [
         ("diffuse", 1),
@@ -38,9 +36,7 @@ def test_sequential_plan_orders_diffuse_then_set_a_then_set_b():
         ("ps_b_3", 0b1000000),
     ]
 
-    plain = session.build_capture_plan(
-        MeasurementSettings(capture_mode="sequential"), LED
-    )
+    plain = session.build_capture_plan(MeasurementSettings(capture_mode="sequential"), LED)
 
     assert [role for role, _ in plain] == ["ps_1", "ps_2", "ps_3"]
 
@@ -60,9 +56,7 @@ def test_plan_errors_instead_of_guessing():
 def test_sequential_plan_needs_complete_sets_and_calibrated_directions():
     s = MeasurementSettings(capture_mode="sequential")
     with pytest.raises(session.CapturePlanError, match="Set A needs exactly three"):
-        session.build_capture_plan(
-            s, {**LED, "pol_a_bits": [2, 3]}
-        )  # A2, A3 without A1
+        session.build_capture_plan(s, {**LED, "pol_a_bits": [2, 3]})  # A2, A3 without A1
 
     no_azimuths = {k: v for k, v in LED.items() if k != "light_azimuths_deg"}
     with pytest.raises(session.CapturePlanError, match="Calibrate Light Angles"):
@@ -79,9 +73,7 @@ def test_sequential_plan_needs_complete_sets_and_calibrated_directions():
 
 
 def test_run_dir_layout_and_suffix_for_an_existing_run(tmp_path):
-    s = MeasurementSettings(
-        sample_id=" cloth ", direction="weft", motion_mode="release"
-    )
+    s = MeasurementSettings(sample_id=" cloth ", direction="weft", motion_mode="release")
 
     base = session.run_dir_for(tmp_path, s)
     assert base == tmp_path / "cloth" / "weft_release"
@@ -123,40 +115,27 @@ def test_color_bundle_copy_and_stamp_contain_no_directories(tmp_path):
     corrector = ColorCorrector(ColorCalibration(1, model, model), 15.1, True, tmp_path)
     corrector.save_bundle_copy()
     stored = load_bundle(tmp_path / "color_calibration.json")
-    assert (
-        stored.diffuse.source_file == stored.point_light.source_file == "a.png; b.png"
-    )
+    assert stored.diffuse.source_file == stored.point_light.source_file == "a.png; b.png"
     assert corrector.stamp["calibration_source"] == "a.png; b.png"
 
 
 def test_session_meta_snapshots_what_the_pipeline_needs():
-    meta = make_meta(
-        MeasurementSettings(
-            capture_mode="sequential", step_size=500, motion_mode="release"
-        )
-    )
+    meta = make_meta(MeasurementSettings(capture_mode="sequential", step_size=500, motion_mode="release"))
 
     assert meta["schema_version"] == session.SCHEMA_VERSION
     assert meta["led_config"] == LED
     assert meta["capture_plan"][0] == {"role": "ps_1", "mask": 2}
-    assert (
-        meta["step_size"] == -500 and meta["commanded_motor_steps_per_increment"] == 500
-    )
+    assert meta["step_size"] == -500 and meta["commanded_motor_steps_per_increment"] == 500
 
     assert meta["branch"] == meta["motion_mode"] == "release"
     assert meta["led_mask"] is None  # meaningless outside RGB mode
     assert meta["microsteps"] == 1 and meta["driver_pulses_per_command_step"] == 16
-    assert (
-        meta["software"]["python"] and meta["started_at"][-6] in "+-"
-    )  # timezone offset
+    assert meta["software"]["python"] and meta["started_at"][-6] in "+-"  # timezone offset
 
     assert meta["simulated"] is False and meta["status"] == "running"
     # The pipeline resolves the light geometry from this very snapshot.
     cfg = photometric.load_light_config(session=meta)
-    assert (
-        cfg.azimuths_deg == (91.27, 334.26, 211.16)
-        and cfg.source == "session.json:led_config"
-    )
+    assert cfg.azimuths_deg == (91.27, 334.26, 211.16) and cfg.source == "session.json:led_config"
 
 
 def test_session_meta_is_json_serialisable():
@@ -167,28 +146,18 @@ def test_writer_persists_every_frame_and_finishes_the_run(tmp_path):
     run = tmp_path / "run"
     writer = session.SessionWriter(run, make_meta())
     writer.start()
-    assert (run / "images").is_dir() and json.loads((run / "session.json").read_text())[
-        "status"
-    ] == "running"
+    assert (run / "images").is_dir() and json.loads((run / "session.json").read_text())["status"] == "running"
     assert json.loads((run / "frames.json").read_text())["frames"] == []
 
     force = session.blank_force_record(0, "0")
     writer.add_frame(
-        session.frame_record(
-            0, 0, 0.0, 0, None, {"image_ps_1": "img_0000_ps_1.png"}, 50, False
-        ),
+        session.frame_record(0, 0, 0.0, 0, None, {"image_ps_1": "img_0000_ps_1.png"}, 50, False),
         force,
     )
     frames = json.loads((run / "frames.json").read_text())
     assert [f["image_ps_1"] for f in frames["frames"]] == ["img_0000_ps_1.png"]
-    assert (
-        frames["frames"][0]["force_csv_row"]
-        == frames["frames"][0]["force_json_index"]
-        == 0
-    )
-    assert (
-        json.loads((run / "force.json").read_text())["forces"][0]["status"] == "timeout"
-    )
+    assert frames["frames"][0]["force_csv_row"] == frames["frames"][0]["force_json_index"] == 0
+    assert json.loads((run / "force.json").read_text())["forces"][0]["status"] == "timeout"
     assert json.loads((run / "session.json").read_text())["frames_written"] == 1
 
     writer.finish("user_stop", "aborted")

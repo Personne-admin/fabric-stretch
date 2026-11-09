@@ -48,9 +48,7 @@ MIN_ALBEDO_CORRELATION = 0.6
 class LightConfig:
     azimuths_deg: tuple[float, float, float]  # LED order = image_ps_1..3
     elevation_deg: float
-    gains: tuple[float, float, float] | None = (
-        None  # radiance relative to the mean; None = unknown
-    )
+    gains: tuple[float, float, float] | None = None  # radiance relative to the mean; None = unknown
     source: str = ""  # provenance string written to manifests
 
     def with_gains(self, gains) -> LightConfig:
@@ -76,9 +74,7 @@ def _from_dict(data: dict, source: str) -> LightConfig:
     azimuths = data.get("light_azimuths_deg", data.get("azimuths_deg"))
     elevation = data.get("light_elevation_deg", data.get("elevation_deg"))
     if azimuths is None or elevation is None or len(azimuths) != 3:
-        raise ValueError(
-            f"LED configuration ({source}) needs three azimuths and an elevation"
-        )
+        raise ValueError(f"LED configuration ({source}) needs three azimuths and an elevation")
 
     gains = data.get("gains")
 
@@ -90,9 +86,7 @@ def _from_dict(data: dict, source: str) -> LightConfig:
     )
 
 
-def load_light_config(
-    path: str | Path | None = None, session: dict | None = None
-) -> LightConfig:
+def load_light_config(path: str | Path | None = None, session: dict | None = None) -> LightConfig:
     if session and isinstance(session.get("led_config"), dict):
         return _from_dict(session["led_config"], "session.json:led_config")
 
@@ -140,9 +134,7 @@ def support_mask(ps_gray: np.ndarray, rel: float = 0.05) -> np.ndarray:
     return mean > rel * max(float(np.median(mean)), 1e-3)
 
 
-def estimate_gains(
-    ps_gray: np.ndarray, support: np.ndarray | None = None
-) -> np.ndarray:
+def estimate_gains(ps_gray: np.ndarray, support: np.ndarray | None = None) -> np.ndarray:
     ps = np.asarray(ps_gray, dtype=np.float32)
     pixels = ps[support] if support is not None else ps.reshape(-1, 3)
     if pixels.shape[0] == 0:
@@ -155,9 +147,7 @@ def estimate_gains(
     return medians / medians.mean()
 
 
-def solve(
-    ps_gray: np.ndarray, cfg: LightConfig, gains=None
-) -> tuple[np.ndarray, np.ndarray]:
+def solve(ps_gray: np.ndarray, cfg: LightConfig, gains=None) -> tuple[np.ndarray, np.ndarray]:
     ps = np.asarray(ps_gray, dtype=np.float32)
     if ps.ndim != 3 or ps.shape[-1] != 3:
         raise ValueError(f"ps_gray must be (H, W, 3), got {ps.shape}")
@@ -172,17 +162,11 @@ def solve(
     return albedo, normals
 
 
-def render(
-    albedo_gray: np.ndarray, normals: np.ndarray, cfg: LightConfig, gains=None
-) -> np.ndarray:
+def render(albedo_gray: np.ndarray, normals: np.ndarray, cfg: LightConfig, gains=None) -> np.ndarray:
     light = light_matrix(cfg).astype(np.float32)
     shading = np.maximum(np.asarray(normals, dtype=np.float32) @ light.T, 0.0)
 
-    return (
-        np.asarray(albedo_gray, dtype=np.float32)[..., None]
-        * shading
-        * _gains_or_ones(cfg, gains)
-    )
+    return np.asarray(albedo_gray, dtype=np.float32)[..., None] * shading * _gains_or_ones(cfg, gains)
 
 
 def shade(
@@ -210,9 +194,7 @@ def color_albedo(albedo_gray: np.ndarray, diffuse_rgb_linear: np.ndarray) -> np.
     rgb = np.asarray(diffuse_rgb_linear, dtype=np.float32)
     luma = np.maximum(rgb @ LUMA, 1e-6)
 
-    return np.asarray(albedo_gray, dtype=np.float32)[..., None] * (
-        rgb / luma[..., None]
-    )
+    return np.asarray(albedo_gray, dtype=np.float32)[..., None] * (rgb / luma[..., None])
 
 
 def albedo_scale(albedo_rgb: np.ndarray, support: np.ndarray | None = None) -> float:
@@ -239,9 +221,7 @@ def decode_normals_u16(v: np.ndarray) -> np.ndarray:
 
 
 def encode_albedo_u16(a: np.ndarray, scale: float) -> np.ndarray:
-    return np.rint(
-        np.clip(np.asarray(a, dtype=np.float32) / scale, 0.0, 1.0) * 65535.0
-    ).astype(np.uint16)
+    return np.rint(np.clip(np.asarray(a, dtype=np.float32) / scale, 0.0, 1.0) * 65535.0).astype(np.uint16)
 
 
 def decode_albedo_u16(v: np.ndarray, scale: float) -> np.ndarray:
@@ -249,9 +229,7 @@ def decode_albedo_u16(v: np.ndarray, scale: float) -> np.ndarray:
 
 
 def encode_albedo_u8(a: np.ndarray, scale: float) -> np.ndarray:
-    return np.rint(
-        np.clip(np.asarray(a, dtype=np.float32) / scale, 0.0, 1.0) * 255.0
-    ).astype(np.uint8)
+    return np.rint(np.clip(np.asarray(a, dtype=np.float32) / scale, 0.0, 1.0) * 255.0).astype(np.uint8)
 
 
 def read_ps_gray(paths) -> np.ndarray:
@@ -261,9 +239,7 @@ def read_ps_gray(paths) -> np.ndarray:
         if bgr is None:
             raise OSError(f"cannot read image {path}")
 
-        channels.append(
-            cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
-        )
+        channels.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0)
 
     if len({c.shape for c in channels}) != 1:
         raise ValueError("PS images differ in size")
@@ -279,51 +255,33 @@ def read_rgb_linear(path) -> np.ndarray:
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
 
 
-def mean_normal_tilt_deg(
-    normals: np.ndarray, support: np.ndarray | None = None
-) -> float:
+def mean_normal_tilt_deg(normals: np.ndarray, support: np.ndarray | None = None) -> float:
     n = np.asarray(normals, dtype=np.float32)
 
-    mean = (n[support] if support is not None else n.reshape(-1, 3)).mean(
-        axis=0, dtype=np.float64
-    )
+    mean = (n[support] if support is not None else n.reshape(-1, 3)).mean(axis=0, dtype=np.float64)
 
     length = float(np.linalg.norm(mean))
 
-    return (
-        0.0
-        if length < _EPS
-        else float(np.degrees(np.arccos(np.clip(mean[2] / length, -1.0, 1.0))))
-    )
+    return 0.0 if length < _EPS else float(np.degrees(np.arccos(np.clip(mean[2] / length, -1.0, 1.0))))
 
 
-def remove_normal_tilt(
-    normals: np.ndarray, max_samples: int = 200_000
-) -> tuple[np.ndarray, float]:
+def remove_normal_tilt(normals: np.ndarray, max_samples: int = 200_000) -> tuple[np.ndarray, float]:
     n = np.asarray(normals, dtype=np.float32)
     h, w = n.shape[:2]
     step = max(1, int(np.ceil(np.sqrt(h * w / max_samples))))
     u = np.linspace(-1.0, 1.0, w, dtype=np.float32)
     v = np.linspace(-1.0, 1.0, h, dtype=np.float32)
     uu, vv = np.meshgrid(u[::step], v[::step])
-    design = np.stack(
-        [np.ones(uu.size, np.float32), uu.reshape(-1), vv.reshape(-1)], axis=1
-    )
+    design = np.stack([np.ones(uu.size, np.float32), uu.reshape(-1), vv.reshape(-1)], axis=1)
 
     sample = n[::step, ::step, :2].reshape(-1, 2)
     coefficients = np.linalg.lstsq(design, sample, rcond=None)[0]  # (3, 2)
-    plane = (
-        coefficients[0]
-        + u[None, :, None] * coefficients[1]
-        + v[:, None, None] * coefficients[2]
-    )
+    plane = coefficients[0] + u[None, :, None] * coefficients[1] + v[:, None, None] * coefficients[2]
 
     out = n.copy()
     out[..., :2] -= plane
     length = np.linalg.norm(out, axis=-1, keepdims=True)
-    out = np.where(
-        length > _EPS, out / np.maximum(length, _EPS), np.float32([0.0, 0.0, 1.0])
-    )
+    out = np.where(length > _EPS, out / np.maximum(length, _EPS), np.float32([0.0, 0.0, 1.0]))
 
     return out.astype(np.float32), mean_normal_tilt_deg(n)
 
@@ -338,9 +296,7 @@ def exposure_gain(
     diffuse_rgb_linear: np.ndarray,
     support: np.ndarray | None = None,
 ) -> float:
-    head_on = np.asarray(albedo_gray, dtype=np.float32) * np.maximum(
-        np.asarray(normals)[..., 2], 0.0
-    )
+    head_on = np.asarray(albedo_gray, dtype=np.float32) * np.maximum(np.asarray(normals)[..., 2], 0.0)
     diffuse = _luma(diffuse_rgb_linear)
     if support is not None:
         head_on, diffuse = head_on[support], diffuse[support]

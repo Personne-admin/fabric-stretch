@@ -10,9 +10,7 @@ from fabsim import dataset, material_package
 from fabsim import photometric as ph
 
 DEMO = Path(__file__).resolve().parents[2] / "examples" / "demo"
-pytestmark = pytest.mark.skipif(
-    not DEMO.is_dir(), reason="examples/demo is not present"
-)
+pytestmark = pytest.mark.skipif(not DEMO.is_dir(), reason="examples/demo is not present")
 
 
 def _package(directory):
@@ -50,19 +48,13 @@ def test_committed_packages_are_v3_with_photometric_layers(name):
     assert pkg["force"]["clamp_width_m"] == pytest.approx(0.202)
     assert ("tiling" in pkg) == (name == "material_package_v3")
 
-    width, height = (
-        pkg["tiling"]["tile_size_px"]
-        if "tiling" in pkg
-        else pkg["atlas"]["dimensions_px"]
-    )
+    width, height = pkg["tiling"]["tile_size_px"] if "tiling" in pkg else pkg["atlas"]["dimensions_px"]
 
     for branch, states in pkg["branches"].items():
         assert len(states) == 8
         for state in states:
             for key in ("texture", "albedo", "normal"):
-                image = cv2.imread(
-                    str(DEMO / name / "warp" / state[key]), cv2.IMREAD_UNCHANGED
-                )
+                image = cv2.imread(str(DEMO / name / "warp" / state[key]), cv2.IMREAD_UNCHANGED)
                 assert image.shape == (height, width, 3), (branch, key)
 
         assert states[0]["force_n"] == 0 or branch == "release"
@@ -73,14 +65,10 @@ def test_rebuild_matches_the_committed_untiled_package(tmp_path):
     assert report["orientations"]["warp"]["status"] == "built"
 
     mine, committed = _package(tmp_path), _package(DEMO / "material_package_v3_untiled")
-    assert mine["release_residual_stretch"] == pytest.approx(
-        committed["release_residual_stretch"], abs=1e-3
-    )
+    assert mine["release_residual_stretch"] == pytest.approx(committed["release_residual_stretch"], abs=1e-3)
 
     for branch in ("loading", "release"):
-        for a, b in zip(
-            mine["branches"][branch], committed["branches"][branch], strict=True
-        ):
+        for a, b in zip(mine["branches"][branch], committed["branches"][branch], strict=True):
             assert a["frame_id"] == b["frame_id"]
             assert a["stretch_ratio"] == pytest.approx(b["stretch_ratio"], abs=1e-3)
             assert a["force_n"] == pytest.approx(b["force_n"], abs=1e-6)

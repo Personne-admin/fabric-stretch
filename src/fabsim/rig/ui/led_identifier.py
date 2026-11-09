@@ -35,15 +35,11 @@ def roles_to_mapping(roles: dict[int, str]) -> tuple[list[int], list[int], int]:
     for prefix, name in (("pol_a", "A"), ("pol_b", "B")):
         present = [f"{prefix}_{i}" in role_to_bit for i in range(3)]
         if any(present) and not all(present):
-            missing = ", ".join(
-                f"{name}{i + 1}" for i, ok in enumerate(present) if not ok
-            )
+            missing = ", ".join(f"{name}{i + 1}" for i, ok in enumerate(present) if not ok)
             raise ValueError(
                 f"Set {name} is incomplete (missing {missing}): assign all of {name}1-{name}3 or none."
             )
-        sets[prefix] = (
-            [role_to_bit[f"{prefix}_{i}"] for i in range(3)] if all(present) else []
-        )
+        sets[prefix] = [role_to_bit[f"{prefix}_{i}"] for i in range(3)] if all(present) else []
     diffuse = 0
     for bit, role in roles.items():
         if role == "diffuse":
@@ -92,19 +88,15 @@ class LedIdentifierDialog:
         grid = ttk.LabelFrame(dlg, text="Bit Assignments", padding=10)
         grid.pack(fill="both", expand=True, padx=12, pady=6)
         for col, text in enumerate(["Bit", "Test"] + [label for _, label in ROLES]):
-            ttk.Label(grid, text=text, font=("", 9, "bold")).grid(
-                row=0, column=col, padx=4, pady=4
-            )
+            ttk.Label(grid, text=text, font=("", 9, "bold")).grid(row=0, column=col, padx=4, pady=4)
 
         self.bit_vars: dict[int, tk.StringVar] = {}
         for bit in range(N_BITS):
             self.bit_vars[bit] = tk.StringVar(value=bit_role(app.led_config, bit))
-            ttk.Label(grid, text=f"Bit {bit}").grid(
-                row=bit + 1, column=0, padx=4, pady=2
+            ttk.Label(grid, text=f"Bit {bit}").grid(row=bit + 1, column=0, padx=4, pady=2)
+            ttk.Button(grid, text="ON", width=6, command=lambda b=bit: self._flash(b)).grid(
+                row=bit + 1, column=1, padx=4, pady=2
             )
-            ttk.Button(
-                grid, text="ON", width=6, command=lambda b=bit: self._flash(b)
-            ).grid(row=bit + 1, column=1, padx=4, pady=2)
             for col, (value, _) in enumerate(ROLES):
                 ttk.Radiobutton(
                     grid,
@@ -115,15 +107,9 @@ class LedIdentifierDialog:
 
         btns = ttk.Frame(dlg)
         btns.pack(fill="x", padx=12, pady=12)
-        ttk.Button(btns, text="All ON", command=lambda: self._light(0xFF)).pack(
-            side="left", padx=2
-        )
-        ttk.Button(btns, text="All OFF", command=self._all_off).pack(
-            side="left", padx=2
-        )
-        ttk.Button(btns, text="Save & Close", command=self._save_and_close).pack(
-            side="right", padx=2
-        )
+        ttk.Button(btns, text="All ON", command=lambda: self._light(0xFF)).pack(side="left", padx=2)
+        ttk.Button(btns, text="All OFF", command=self._all_off).pack(side="left", padx=2)
+        ttk.Button(btns, text="Save & Close", command=self._save_and_close).pack(side="right", padx=2)
         ttk.Button(btns, text="Cancel", command=self._close).pack(side="right", padx=2)
 
     def _light(self, mask: int):
@@ -152,9 +138,7 @@ class LedIdentifierDialog:
 
     def _save_and_close(self):
         try:
-            pol_a, pol_b, diffuse = roles_to_mapping(
-                {bit: var.get() for bit, var in self.bit_vars.items()}
-            )
+            pol_a, pol_b, diffuse = roles_to_mapping({bit: var.get() for bit, var in self.bit_vars.items()})
         except ValueError as exc:
             messagebox.showerror("Incomplete assignment", str(exc), parent=self.dlg)
 

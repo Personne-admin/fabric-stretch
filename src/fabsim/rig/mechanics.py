@@ -15,7 +15,6 @@ _BASE_TIMER_COUNTS = 64
 
 @dataclass(frozen=True)
 class MotorMechanics:
-
     screw_pitch_um_per_output_rev: float = 1500.0
     gear_ratio: float = 49.0
     motor_full_steps_per_rev: int = 200
@@ -50,9 +49,7 @@ class MotorMechanics:
 DEFAULT_MOTOR_MECHANICS = MotorMechanics()
 
 
-def normalize_motion(
-    step_count: int, motion_mode: str | None = None
-) -> tuple[int, str]:
+def normalize_motion(step_count: int, motion_mode: str | None = None) -> tuple[int, str]:
     legacy_mode = "release" if step_count < 0 else "loading"
     mode = motion_mode if motion_mode in {"loading", "release"} else legacy_mode
 
@@ -76,9 +73,4 @@ def tick_period_us(speed_mult: int = 1) -> float:
 
 
 def move_duration_s(steps: int, speed_mult: int = 1) -> float:
-    return (
-        (abs(int(steps)) + 1)
-        * TICKS_PER_COMMAND_STEP
-        * tick_period_us(speed_mult)
-        * 1e-6
-    )
+    return (abs(int(steps)) + 1) * TICKS_PER_COMMAND_STEP * tick_period_us(speed_mult) * 1e-6

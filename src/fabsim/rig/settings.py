@@ -26,11 +26,8 @@ OPTIONAL_PRESET_KEYS = (
 
 @dataclass
 class MeasurementSettings:
-
     count: int = 36
-    step_size: int = (
-        100  # command steps per increment, always >= 0 (direction is ``motion_mode``)
-    )
+    step_size: int = 100  # command steps per increment, always >= 0 (direction is ``motion_mode``)
     motion_mode: str = "loading"
     led_mask: int = 85  # RGB mode only
     led_power: int = 128
@@ -48,14 +45,10 @@ class MeasurementSettings:
     capture_mode: str = "rgb"
     polarization: bool = False  # sequential mode: also capture the B LED set
     include_diffuse: bool = False  # sequential mode: add a diffuse reference shot
-    release_steps: int = (
-        DEFAULT_RELEASE_STEPS  # firmware auto-release after an overload trip
-    )
+    release_steps: int = DEFAULT_RELEASE_STEPS  # firmware auto-release after an overload trip
 
     @classmethod
-    def from_preset(
-        cls, preset: dict, current: MeasurementSettings | None = None
-    ) -> MeasurementSettings:
+    def from_preset(cls, preset: dict, current: MeasurementSettings | None = None) -> MeasurementSettings:
         known = {f.name for f in fields(cls)}
         values = {k: v for k, v in preset.items() if k in known}
         if current is not None:
@@ -65,13 +58,9 @@ class MeasurementSettings:
             "commanded_motor_steps_per_increment",
             preset.get("step_size", cls.step_size),
         )
-        values["step_size"], legacy_mode = normalize_motion(
-            legacy_steps, preset.get("motion_mode")
-        )
+        values["step_size"], legacy_mode = normalize_motion(legacy_steps, preset.get("motion_mode"))
         values["motion_mode"] = legacy_mode
-        values["relax_indices"] = sorted(
-            int(i) for i in preset.get("relax_indices", [])
-        )
+        values["relax_indices"] = sorted(int(i) for i in preset.get("relax_indices", []))
 
         return cls(**values)
 

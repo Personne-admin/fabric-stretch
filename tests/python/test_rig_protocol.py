@@ -88,10 +88,7 @@ def test_parse_reply_telemetry_payloads():
     armed = protocol.parse_reply(
         "LIMIT_ARMED limit_n=90.000000 release_motor_steps=200 release_dir_positive=1"
     )
-    assert (
-        armed.kind == protocol.LIMIT_ARMED
-        and armed.data["release_motor_steps"] == 200.0
-    )
+    assert armed.kind == protocol.LIMIT_ARMED and armed.data["release_motor_steps"] == 200.0
     assert protocol.parse_reply("zero: -12").data == {"zero_counts": -12}
 
 
@@ -107,19 +104,11 @@ def test_controller_events_from_raw_bytes():
     ctrl = ArduinoController()
     lines = ctrl.feed(b"power: 3\nleds: 2 OK\nMOVE_DO")
     assert lines == ["power: 3", "leds: 2 OK"]
-    assert (
-        ctrl.power_ack.is_set()
-        and ctrl.lights_on.is_set()
-        and not ctrl.move_done.is_set()
-    )
+    assert ctrl.power_ack.is_set() and ctrl.lights_on.is_set() and not ctrl.move_done.is_set()
     ctrl.feed(
         b"NE\nLIMIT_TRIP force_n=3.5 raw_counts=1 zero_counts=0 calibration_n_per_count=0.1 limit_n=3\n"
     )
-    assert (
-        ctrl.move_done.is_set()
-        and ctrl.limit_tripped.is_set()
-        and ctrl.last_trip_force == 3.5
-    )
+    assert ctrl.move_done.is_set() and ctrl.limit_tripped.is_set() and ctrl.last_trip_force == 3.5
 
 
 def test_listeners_are_called_and_failures_are_contained():

@@ -186,9 +186,7 @@ def min_costs(E, P):
     h, w = E.shape[:2]
     P = np.asarray(P, dtype=int).reshape(-1, 2)
     C = np.full((h + 2, w + 2), np.inf)
-    C[P[:, 0], P[:, 1]] = E[
-        P[:, 0] - 1, P[:, 1] - 1
-    ]  # padded idx = P (1-based +1, then -1)
+    C[P[:, 0], P[:, 1]] = E[P[:, 0] - 1, P[:, 1] - 1]  # padded idx = P (1-based +1, then -1)
 
     F = np.zeros(h + 2, bool)  # padded rows, 0-based
     F[P[:, 0]] = True  # MATLAB F(P+1)
@@ -244,9 +242,7 @@ def costs_to_path(C, PS, PE):
     limit = C.size + 2
     while True:
         if not (1 <= y <= C.shape[0] - 2 and 1 <= x <= C.shape[1] - 2):
-            raise RuntimeError(
-                "costs_to_path: no path to a start position"
-            )  # MATLAB: index error
+            raise RuntimeError("costs_to_path: no path to a start position")  # MATLAB: index error
         c = C[y - 1 : y + 2, x - 1 : x + 2]  # MATLAB C(y+1+(-1:1), x+1+(-1:1))
         k = int(np.argmin(c.ravel(order="F")))  # column-major, first minimum
         y += k % 3 - 1
@@ -347,21 +343,14 @@ def blend_tile(I0, PH, PV, wh, wv, idh, idv, y1, y2, x1, x2):
         # corners (taken from the already edge-blended planes, as in MATLAB)
         CTL, CTR = P[y_h_t, x_v_l, :], P[y_h_t, x_v_r, :]
         CBL, CBR = P[y_h_b, x_v_l, :], P[y_h_b, x_v_r, :]
-        C = (
-            CTL * (1 - MCT) * (1 - MCL)
-            + CTR * (1 - MCT) * MCL
-            + CBL * MCT * (1 - MCL)
-            + CBR * MCT * MCL
-        )
+        C = CTL * (1 - MCT) * (1 - MCL) + CTR * (1 - MCT) * MCL + CBL * MCT * (1 - MCL) + CBR * MCT * MCL
         P[y_h_t, x_v_l, :] = C
         P[y_h_t, x_v_r, :] = C
         P[y_h_b, x_v_l, :] = C
         P[y_h_b, x_v_r, :] = C
 
     # final tile: size (y2-y1) x (x2-x1) -- one smaller than reported area
-    return I0[
-        _s(1 + idh + wt, h0 - idh - wb - 1), _s(1 + idv + wl, w0 - idv - wr - 1), :
-    ]
+    return I0[_s(1 + idh + wt, h0 - idh - wb - 1), _s(1 + idv + wl, w0 - idv - wr - 1), :]
 
 
 def _check_crop(shape_hw, wh, wv, idh, idv, y1, y2, x1, x2):
@@ -448,9 +437,7 @@ def resolve_params(shape_hw, window_size, shift, interp_dist, area):
     ws = np.tile(ws, 2) if ws.size == 1 else ws
     ws = ws.astype(int)
 
-    sh = np.atleast_1d(
-        np.asarray(0 if shift is None or np.size(shift) == 0 else shift, dtype=float)
-    )
+    sh = np.atleast_1d(np.asarray(0 if shift is None or np.size(shift) == 0 else shift, dtype=float))
     if np.any(sh != np.round(sh)) or sh.size not in (1, 4):
         raise ValueError("shift not set properly")
     sh = (np.tile(sh, 4) if sh.size == 1 else sh).astype(int)
@@ -473,9 +460,7 @@ def resolve_params(shape_hw, window_size, shift, interp_dist, area):
     y1_min, y2_max = 1 + idh + wt, h - idh - wb
     x1_min, x2_max = 1 + idv + wl, w - idv - wr
     if y1_min >= y2_max or x1_min >= x2_max:
-        raise ValueError(
-            "window_size and/or interp_dist are too big with respect to size of provided images"
-        )
+        raise ValueError("window_size and/or interp_dist are too big with respect to size of provided images")
 
     a = np.atleast_1d(np.asarray([] if area is None else area, dtype=float))
     if a.size and np.any(a != np.round(a)):
@@ -538,11 +523,7 @@ def find_tile_detailed(
     if guidance_images is not None and not (
         hasattr(guidance_images, "__len__") and len(guidance_images) == 0
     ):
-        g = (
-            [guidance_images]
-            if not isinstance(guidance_images, (list, tuple))
-            else list(guidance_images)
-        )
+        g = [guidance_images] if not isinstance(guidance_images, (list, tuple)) else list(guidance_images)
         try:
             WI, _ = _stack_images(g, h, w)
         except ValueError as exc:
@@ -552,17 +533,11 @@ def find_tile_detailed(
     sh = p["shift"]
     coordinates2 = [p["y1"], p["y2"] + sh[3], p["x1"], p["x2"] + sh[1]]
     shift2 = [sh[0] + sh[1], sh[2] + sh[3]]
-    search_fn = (
-        joint_coordinates_for_max_tile
-        if joint_search
-        else automatic_coordinates_for_max_tile
-    )
+    search_fn = joint_coordinates_for_max_tile if joint_search else automatic_coordinates_for_max_tile
     y1, y2, x1, x2 = search_fn(search, p["ws"], shift2, coordinates2)
     out_area = (y1, x1, y2 - y1 + 1, x2 - x1 + 1)
 
-    T, paths = create_tile(
-        I, p["wh"], p["wv"], p["idh"], p["idv"], y1, y2, x1, x2, WI, inplace=True
-    )
+    T, paths = create_tile(I, p["wh"], p["wv"], p["idh"], p["idv"], y1, y2, x1, x2, WI, inplace=True)
 
     tiles, j = [], 0
     for dt, nd, d in zip(dtypes, ndims, ds, strict=True):
@@ -585,8 +560,6 @@ def find_tile_detailed(
 
 
 def find_tile(images, window_size, shift, interp_dist, area=None, guidance_images=None):
-    tiles, out_area, _ = find_tile_detailed(
-        images, window_size, shift, interp_dist, area, guidance_images
-    )
+    tiles, out_area, _ = find_tile_detailed(images, window_size, shift, interp_dist, area, guidance_images)
 
     return tiles, out_area, None

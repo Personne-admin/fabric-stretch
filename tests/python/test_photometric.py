@@ -7,9 +7,7 @@ import pytest
 
 from fabsim import photometric as ph
 
-CFG = ph.LightConfig(
-    azimuths_deg=(91.27, 334.26, 211.16), elevation_deg=45.0, source="test"
-)
+CFG = ph.LightConfig(azimuths_deg=(91.27, 334.26, 211.16), elevation_deg=45.0, source="test")
 
 
 def _sphere(size=96, albedo=0.6):
@@ -37,9 +35,7 @@ def test_packaged_default_config_loads():
 
 def test_config_precedence(tmp_path):
     f = tmp_path / "led.json"
-    f.write_text(
-        json.dumps({"light_azimuths_deg": [0, 120, 240], "light_elevation_deg": 30})
-    )
+    f.write_text(json.dumps({"light_azimuths_deg": [0, 120, 240], "light_elevation_deg": 30}))
     assert ph.load_light_config(f).azimuths_deg == (0.0, 120.0, 240.0)
     session = {
         "led_config": {
@@ -59,9 +55,7 @@ def test_config_precedence(tmp_path):
 def test_light_matrix_is_unit_and_ccw_from_right():
     L = ph.light_matrix(ph.LightConfig((0.0, 90.0, 180.0), 45.0))
     np.testing.assert_allclose(np.linalg.norm(L, axis=1), 1.0)
-    np.testing.assert_allclose(
-        L[0], [np.cos(np.pi / 4), 0, np.sin(np.pi / 4)], atol=1e-12
-    )
+    np.testing.assert_allclose(L[0], [np.cos(np.pi / 4), 0, np.sin(np.pi / 4)], atol=1e-12)
     assert L[1, 1] > 0.7 and L[2, 0] < -0.7  # 90 deg = image up, 180 deg = image left
 
 
@@ -98,9 +92,8 @@ def test_gains_estimation_and_solve():
     _, n_plain = ph.solve(ps, CFG)
     _, n_fixed = ph.solve(ps, CFG, est)
 
-    tilt = lambda m: np.degrees(
-        np.arccos(np.clip(m[..., 2].mean(), -1, 1))
-    )  # noqa: E731
+    def tilt(m):
+        return np.degrees(np.arccos(np.clip(m[..., 2].mean(), -1, 1)))
 
     assert tilt(n_plain) > 5
     assert tilt(n_fixed) < 0.1
@@ -118,13 +111,9 @@ def test_estimate_gains_respects_support_and_empty():
     support = np.zeros((8, 8), bool)
     support[:4] = True
 
-    np.testing.assert_allclose(
-        ph.estimate_gains(ps, support), np.array([0.2, 0.4, 0.6]) / 0.4, atol=1e-6
-    )
+    np.testing.assert_allclose(ph.estimate_gains(ps, support), np.array([0.2, 0.4, 0.6]) / 0.4, atol=1e-6)
 
-    np.testing.assert_array_equal(
-        ph.estimate_gains(ps, np.zeros((8, 8), bool)), np.ones(3)
-    )
+    np.testing.assert_array_equal(ph.estimate_gains(ps, np.zeros((8, 8), bool)), np.ones(3))
 
 
 def test_normal_encoding_round_trip():
@@ -159,10 +148,7 @@ def test_albedo_encoding_round_trip_and_scale():
     assert (v[a >= scale] == 65535).all()
 
     u8 = ph.encode_albedo_u8(a, scale)
-    assert (
-        u8.dtype == np.uint8
-        and np.abs(u8[ok] / 255 * scale - a[ok]).max() <= scale / 255 / 2 + 1e-6
-    )
+    assert u8.dtype == np.uint8 and np.abs(u8[ok] / 255 * scale - a[ok]).max() <= scale / 255 / 2 + 1e-6
     assert ph.albedo_scale(np.zeros((4, 4, 3))) == 1.0
 
 
@@ -222,9 +208,7 @@ def test_shade_is_linear_clamped_and_gain_is_optional():
     np.testing.assert_allclose(ph.shade(albedo, n, up), 0.5)
 
     d = ph.light_direction(0.0, 45.0)
-    np.testing.assert_allclose(
-        ph.shade(albedo, n, d), 0.5 * np.cos(np.pi / 4), atol=1e-6
-    )
+    np.testing.assert_allclose(ph.shade(albedo, n, d), 0.5 * np.cos(np.pi / 4), atol=1e-6)
 
     # ambient fills in when the light is behind the surface; gain scales the diffuse term only
     np.testing.assert_allclose(ph.shade(albedo, n, -up, ambient=0.2), 0.1, atol=1e-6)
@@ -233,9 +217,7 @@ def test_shade_is_linear_clamped_and_gain_is_optional():
 
 
 def test_light_direction_frame():
-    np.testing.assert_allclose(
-        ph.light_direction(90.0, 0.0), [0, 1, 0], atol=1e-12
-    )  # image up
+    np.testing.assert_allclose(ph.light_direction(90.0, 0.0), [0, 1, 0], atol=1e-12)  # image up
 
     np.testing.assert_allclose(ph.light_direction(0.0, 90.0), [0, 0, 1], atol=1e-12)
     assert ph.light_matrix(CFG).shape == (3, 3)
@@ -259,9 +241,7 @@ def test_remove_normal_tilt_removes_the_ramp_and_keeps_detail():
 
     n = (n / np.linalg.norm(n, axis=-1, keepdims=True)).astype(np.float32)
     fixed, tilt = ph.remove_normal_tilt(n)
-    assert tilt == pytest.approx(
-        np.degrees(np.arctan(0.1)), abs=0.5
-    )  # mean tilt comes from the y offset
+    assert tilt == pytest.approx(np.degrees(np.arctan(0.1)), abs=0.5)  # mean tilt comes from the y offset
 
     assert np.abs(np.linalg.norm(fixed, axis=-1) - 1).max() < 1e-5
     assert ph.mean_normal_tilt_deg(fixed) < 0.7
@@ -283,9 +263,7 @@ def test_exposure_gain_scales_a_head_on_relight_to_the_diffuse_photo():
 
     head_on = (albedo * np.maximum(normals[..., 2], 0))[support].mean() * factor
     assert head_on == pytest.approx((diffuse @ ph.LUMA)[support].mean(), rel=1e-4)
-    assert (
-        factor > 2.5
-    )  # the sphere's normals tilt away, so the head-on light is dimmer than the albedo
+    assert factor > 2.5  # the sphere's normals tilt away, so the head-on light is dimmer than the albedo
 
     assert (
         ph.exposure_gain(
@@ -301,12 +279,8 @@ def test_albedo_correlation_flags_a_negative_and_a_flat_capture():
     albedo, _, support = _sphere()
     diffuse = np.dstack([albedo] * 3)
 
-    assert ph.albedo_correlation(albedo, diffuse, support) == pytest.approx(
-        1.0, abs=1e-4
-    )
+    assert ph.albedo_correlation(albedo, diffuse, support) == pytest.approx(1.0, abs=1e-4)
 
-    assert ph.albedo_correlation(albedo, 1 - diffuse, support) == pytest.approx(
-        -1.0, abs=1e-4
-    )
+    assert ph.albedo_correlation(albedo, 1 - diffuse, support) == pytest.approx(-1.0, abs=1e-4)
 
     assert ph.albedo_correlation(np.ones((8, 8)), np.ones((8, 8, 3))) == 0.0

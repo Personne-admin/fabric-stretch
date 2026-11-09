@@ -213,16 +213,11 @@ def build_sequence(
                 f"numeric frame_id (got {frame_id!r})"
             )
 
-        frames.append(
-            SequenceFrame(
-                sequence_index=seq_index, frame_id=frame_id, image_path=candidate
-            )
-        )
+        frames.append(SequenceFrame(sequence_index=seq_index, frame_id=frame_id, image_path=candidate))
 
     if skipped and not skip_missing:
         detail = "\n".join(
-            f"  sequence_index {s['sequence_index']} frame_id {s['frame_id']}: {s['reason']}"
-            for s in skipped
+            f"  sequence_index {s['sequence_index']} frame_id {s['frame_id']}: {s['reason']}" for s in skipped
         )
 
         raise AdapterError(
@@ -299,11 +294,9 @@ def pixel_center_resize(image: np.ndarray, out_h: int, out_w: int) -> np.ndarray
         row1 = arr[y1][:, x0]
         row2 = arr[y0][:, x1]
         row3 = arr[y1][:, x1]
-        out = (1 - wy)[:, None, None] * (
-            (1 - wx)[None, :, None] * row0 + wx[None, :, None] * row2
-        ) + wy[:, None, None] * (
-            (1 - wx)[None, :, None] * row1 + wx[None, :, None] * row3
-        )
+        out = (1 - wy)[:, None, None] * ((1 - wx)[None, :, None] * row0 + wx[None, :, None] * row2) + wy[
+            :, None, None
+        ] * ((1 - wx)[None, :, None] * row1 + wx[None, :, None] * row3)
     if single:
         out = out[:, :, 0]
 
@@ -325,9 +318,7 @@ def load_points(path: str) -> list[TrackPoint]:
         if isinstance(points_value, list):
             for entry in points_value:
                 if not isinstance(entry, dict):
-                    raise AdapterError(
-                        f"{path}: point entry is not an object: {entry!r}"
-                    )
+                    raise AdapterError(f"{path}: point entry is not an object: {entry!r}")
                 pid = entry.get("id")
                 if pid is None:
                     raise AdapterError(f'{path}: point entry missing "id": {entry!r}')
@@ -469,18 +460,16 @@ def sample_dense_field(field: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> np.
     f01 = field[:, y0, x1]
     f10 = field[:, y1, x0]
     f11 = field[:, y1, x1]
-    out = (1 - wy)[None, :, None] * (
-        (1 - wx)[None, :, None] * f00 + wx[None, :, None] * f01
-    ) + wy[None, :, None] * ((1 - wx)[None, :, None] * f10 + wx[None, :, None] * f11)
+    out = (1 - wy)[None, :, None] * ((1 - wx)[None, :, None] * f00 + wx[None, :, None] * f01) + wy[
+        None, :, None
+    ] * ((1 - wx)[None, :, None] * f10 + wx[None, :, None] * f11)
     if squeezed:
         out = out[:, :, 0]
 
     return out
 
 
-def combine_confidence(
-    visibility: np.ndarray, raw_confidence: np.ndarray, mode: str
-) -> np.ndarray:
+def combine_confidence(visibility: np.ndarray, raw_confidence: np.ndarray, mode: str) -> np.ndarray:
     if mode == "vis*conf":
         return visibility * raw_confidence
     if mode == "vis":
@@ -496,14 +485,10 @@ def compute_rotation(ref_seq_index: int, frame_count: int) -> np.ndarray:
     if frame_count <= 0:
         return np.zeros(0, dtype=np.int64)
 
-    return (
-        (np.arange(frame_count, dtype=np.int64) - ref_seq_index) % frame_count
-    ).astype(np.int64)
+    return ((np.arange(frame_count, dtype=np.int64) - ref_seq_index) % frame_count).astype(np.int64)
 
 
-def reference_error_px(
-    track_src: np.ndarray, query_src: np.ndarray, ref_seq_index: int
-) -> np.ndarray:
+def reference_error_px(track_src: np.ndarray, query_src: np.ndarray, ref_seq_index: int) -> np.ndarray:
     d = track_src[ref_seq_index, :, :] - query_src
 
     return np.hypot(d[:, 0], d[:, 1])
@@ -572,16 +557,12 @@ def build_provenance(
         "confidence_mode": plan.confidence_mode,
         "coordinate_convention": plan.convention,
         "reference_error_limit_px": plan.reference_error_limit,
-        "reference_errors_px": {
-            p.id: float(reference_errors[i]) for i, p in enumerate(plan.points)
-        },
+        "reference_errors_px": {p.id: float(reference_errors[i]) for i, p in enumerate(plan.points)},
         "frame_mapping": [
             {
                 "sequence_index": f.sequence_index,
                 "frame_id": f.frame_id,
-                "rotated_position": int(
-                    compute_rotation(plan.reference_seq_index, plan.frame_count)[i]
-                ),
+                "rotated_position": int(compute_rotation(plan.reference_seq_index, plan.frame_count)[i]),
             }
             for i, f in enumerate(plan.frames)
         ],
@@ -652,9 +633,7 @@ def write_tracks_csv(
     visibility: np.ndarray,
     raw_confidence: np.ndarray,
 ) -> None:
-    lines = [
-        "frame_id,track_id,x,y,confidence,visibility,raw_confidence,sequence_index"
-    ]
+    lines = ["frame_id,track_id,x,y,confidence,visibility,raw_confidence,sequence_index"]
     for t, frame in enumerate(plan.frames):
         for n, p in enumerate(plan.points):
             lines.append(
@@ -691,9 +670,7 @@ def write_sampled_npz(
         "raw_confidence": raw_confidence,
         "confidence": confidence,
         "frame_id": np.asarray([f.frame_id for f in plan.frames], dtype=np.int64),
-        "sequence_index": np.asarray(
-            [f.sequence_index for f in plan.frames], dtype=np.int64
-        ),
+        "sequence_index": np.asarray([f.sequence_index for f in plan.frames], dtype=np.int64),
         "rotated_position": rot,
         "metadata": np.asarray(json.dumps(provenance, indent=2)),
     }
@@ -712,9 +689,7 @@ def load_sampled_npz(path: str) -> dict[str, Any]:
         metadata = json.loads(str(data["metadata"]))
         points = [
             TrackPoint(id=str(pid), x=float(x), y=float(y))
-            for pid, x, y in zip(
-                data["point_id"], data["point_x"], data["point_y"], strict=False
-            )
+            for pid, x, y in zip(data["point_id"], data["point_x"], data["point_y"], strict=False)
         ]
         out = {
             "points": points,
@@ -728,16 +703,12 @@ def load_sampled_npz(path: str) -> dict[str, Any]:
             "metadata": metadata,
         }
     except (KeyError, ValueError, TypeError) as exc:
-        raise AdapterError(
-            f"{path}: not a cowtracker_to_fabsim sampled NPZ: {exc}"
-        ) from exc
+        raise AdapterError(f"{path}: not a cowtracker_to_fabsim sampled NPZ: {exc}") from exc
 
     return out
 
 
-def write_dense_npz(
-    path: str, dense: dict[str, np.ndarray], provenance: dict[str, Any]
-) -> None:
+def write_dense_npz(path: str, dense: dict[str, np.ndarray], provenance: dict[str, Any]) -> None:
     try:
         np.savez(
             path,
@@ -753,9 +724,7 @@ def write_dense_npz(
 def diagnostic_frame_indices(frame_count: int) -> list[int]:
     if frame_count == 0:
         return []
-    indices = sorted(
-        {min(frame_count - 1, (p * frame_count) // 100) for p in DIAGNOSTIC_PERCENTS}
-    )
+    indices = sorted({min(frame_count - 1, (p * frame_count) // 100) for p in DIAGNOSTIC_PERCENTS})
     # The 100% bucket resolves to the last frame index; keep the explicit
     # "first" too even when frame_count == 1.
     if 0 not in indices:
@@ -794,9 +763,7 @@ def write_diagnostics_stills(
     try:
         os.makedirs(diagnostics_dir, exist_ok=True)
     except OSError as exc:
-        raise AdapterError(
-            f"cannot create diagnostics dir {diagnostics_dir}: {exc}"
-        ) from exc
+        raise AdapterError(f"cannot create diagnostics dir {diagnostics_dir}: {exc}") from exc
     written: list[str] = []
     for t in diagnostic_frame_indices(plan.frame_count):
         frame = plan.frames[t]
@@ -822,9 +789,7 @@ def write_diagnostics_stills(
     return written
 
 
-def write_diagnostic_video(
-    plan: RunPlan, track_src: np.ndarray, confidence: np.ndarray, path: str
-) -> None:
+def write_diagnostic_video(plan: RunPlan, track_src: np.ndarray, confidence: np.ndarray, path: str) -> None:
     try:
         import cv2  # type: ignore
     except ImportError as exc:  # pragma: no cover - env dependent
@@ -849,9 +814,7 @@ def write_diagnostic_video(
         if writer is None:
             h, w = bgr.shape[:2]
             try:
-                writer = cv2.VideoWriter(
-                    path, cv2.VideoWriter_fourcc(*"mp4v"), 8.0, (w, h)
-                )
+                writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), 8.0, (w, h))
             except Exception as exc:
                 raise AdapterError(f"cannot open video writer {path}: {exc}") from exc
         writer.write(bgr)
@@ -927,27 +890,19 @@ def _validate_sampled_npz_against_run(
     if npz_fid != run_fid:
         problems.append(f"frame_id: NPZ {npz_fid} != run {run_fid}")
     if data["track_src"].shape[0] != len(frames):
-        problems.append(
-            f"track frame count {data['track_src'].shape[0]} != run frame count {len(frames)}"
-        )
+        problems.append(f"track frame count {data['track_src'].shape[0]} != run frame count {len(frames)}")
     stored_role = meta.get("role")
     if stored_role is not None and stored_role != role:
         problems.append(f"role: NPZ {stored_role!r} != CLI {role!r}")
     stored_src = meta.get("source_dimensions")
     if stored_src is not None and list(stored_src) != [source_w, source_h]:
-        problems.append(
-            f"source dimensions: NPZ {list(stored_src)} != run {source_w}x{source_h}"
-        )
+        problems.append(f"source dimensions: NPZ {list(stored_src)} != run {source_w}x{source_h}")
     stored_inf = meta.get("inference_dimensions")
     if stored_inf is not None and list(stored_inf) != [inf_w, inf_h]:
-        problems.append(
-            f"inference dimensions: NPZ {list(stored_inf)} != resolved {inf_w}x{inf_h}"
-        )
+        problems.append(f"inference dimensions: NPZ {list(stored_inf)} != resolved {inf_w}x{inf_h}")
     stored_conv = meta.get("coordinate_convention")
     if stored_conv is not None and stored_conv != convention:
-        problems.append(
-            f"coordinate convention: NPZ {stored_conv!r} != resolved {convention!r}"
-        )
+        problems.append(f"coordinate convention: NPZ {stored_conv!r} != resolved {convention!r}")
     if problems:
         raise AdapterError(
             "--sampled-input does not match the run/CLI; refusing to re-export "
@@ -955,9 +910,7 @@ def _validate_sampled_npz_against_run(
         )
 
 
-def _validate_points_match_npz(
-    points: list[TrackPoint], data: dict[str, Any], atol: float = 1e-6
-) -> None:
+def _validate_points_match_npz(points: list[TrackPoint], data: dict[str, Any], atol: float = 1e-6) -> None:
     npz_points = data["points"]
     npz_ids = [p.id for p in npz_points]
     ids = [p.id for p in points]
@@ -1030,9 +983,7 @@ def _resolve_reference_frame(
 ) -> tuple[int, int]:
     if args.reference_frame is None:
         if sampled_data is not None:
-            stored_ref = (sampled_data.get("metadata") or {}).get(
-                "reference_frame_sequence_index"
-            )
+            stored_ref = (sampled_data.get("metadata") or {}).get("reference_frame_sequence_index")
             matches = [f for f in frames if f.sequence_index == stored_ref]
             if not matches:
                 raise AdapterError(
@@ -1088,13 +1039,9 @@ def preflight(args: argparse.Namespace) -> RunPlan:
         )
 
     points, points_mode = _resolve_points(args, source_w, source_h, sampled_data)
-    reference_frame_id, reference_seq_index = _resolve_reference_frame(
-        args, frames, sampled_data
-    )
+    reference_frame_id, reference_seq_index = _resolve_reference_frame(args, frames, sampled_data)
     if sampled_data is not None:
-        expected_rot = [
-            int(v) for v in compute_rotation(reference_seq_index, len(frames))
-        ]
+        expected_rot = [int(v) for v in compute_rotation(reference_seq_index, len(frames))]
         npz_rot = [int(v) for v in sampled_data["rotated_position"]]
         if expected_rot != npz_rot:
             raise AdapterError(
@@ -1112,12 +1059,8 @@ def preflight(args: argparse.Namespace) -> RunPlan:
     csv_output = os.path.abspath(args.csv_output) if args.csv_output else None
     save_sampled = os.path.abspath(args.save_sampled) if args.save_sampled else None
     save_dense = os.path.abspath(args.save_dense) if args.save_dense else None
-    diagnostics_dir = (
-        os.path.abspath(args.diagnostics_dir) if args.diagnostics_dir else None
-    )
-    diagnostic_video = (
-        os.path.abspath(args.diagnostic_video) if args.diagnostic_video else None
-    )
+    diagnostics_dir = os.path.abspath(args.diagnostics_dir) if args.diagnostics_dir else None
+    diagnostic_video = os.path.abspath(args.diagnostic_video) if args.diagnostic_video else None
 
     plan = RunPlan(
         run_dir=run_dir,
@@ -1146,9 +1089,7 @@ def preflight(args: argparse.Namespace) -> RunPlan:
         diagnostic_video=diagnostic_video,
         device=args.device,
     )
-    plan.notes.extend(
-        validate_points_in_image(points, source_w, source_h, inf_w, inf_h, convention)
-    )
+    plan.notes.extend(validate_points_in_image(points, source_w, source_h, inf_w, inf_h, convention))
     if rotation_active:
         plan.notes.append(
             f"reference frame {reference_frame_id} is sequence index "
@@ -1167,13 +1108,9 @@ def print_dry_run_report(plan: RunPlan, args: argparse.Namespace) -> None:
     print(sep)
     print(f"run directory          : {plan.run_dir}")
     print(f"role                   : {plan.role}")
-    print(
-        f"frames (frames.json)   : {plan.frame_count} included, {len(plan.skipped)} skipped"
-    )
+    print(f"frames (frames.json)   : {plan.frame_count} included, {len(plan.skipped)} skipped")
     for s in plan.skipped:
-        print(
-            f"  skipped seq {s['sequence_index']} frame_id {s['frame_id']}: {s['reason']}"
-        )
+        print(f"  skipped seq {s['sequence_index']} frame_id {s['frame_id']}: {s['reason']}")
     print(f"source dimensions      : {plan.source_w} x {plan.source_h} (w x h)")
     print(f"inference dimensions   : {plan.inference_w} x {plan.inference_h} (w x h)")
     print(
@@ -1191,19 +1128,13 @@ def print_dry_run_report(plan: RunPlan, args: argparse.Namespace) -> None:
             plan.convention,
         )
         print(f"points                 : {len(plan.points)} ({plan.points_mode})")
-        print(
-            f"  example transform    : ({x0:.3f}, {y0:.3f}) -> inference ({xi0:.3f}, {yi0:.3f})"
-        )
-    print(
-        f"reference frame        : {plan.reference_frame_id} (sequence index {plan.reference_seq_index})"
-    )
+        print(f"  example transform    : ({x0:.3f}, {y0:.3f}) -> inference ({xi0:.3f}, {yi0:.3f})")
+    print(f"reference frame        : {plan.reference_frame_id} (sequence index {plan.reference_seq_index})")
     print(f"sequence rotation      : {'yes' if plan.rotation_active else 'no'}")
     print("frame mapping (sequence_index -> frame_id -> rotated_position):")
     rot = compute_rotation(plan.reference_seq_index, plan.frame_count)
     for i, f in enumerate(plan.frames):
-        print(
-            f"  seq {f.sequence_index:>3} -> frame_id {f.frame_id:>3} -> rot {int(rot[i]):>3}"
-        )
+        print(f"  seq {f.sequence_index:>3} -> frame_id {f.frame_id:>3} -> rot {int(rot[i]):>3}")
     print(f"output (fabsim-tracks) : {plan.output_path}")
     for label, p in (
         ("csv output", plan.csv_output),
@@ -1295,12 +1226,8 @@ def build_video_tensor(plan: RunPlan, torch_mod: Any, device: str) -> Any:
     return tensor
 
 
-def run_inference(
-    plan: RunPlan, args: argparse.Namespace
-) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    torch_mod, cowtracker_mod, torch_version = _import_torch_and_cowtracker(
-        args.cowtracker_root
-    )
+def run_inference(plan: RunPlan, args: argparse.Namespace) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    torch_mod, cowtracker_mod, torch_version = _import_torch_and_cowtracker(args.cowtracker_root)
 
     if args.device == "cuda":
         if not torch_mod.cuda.is_available():
@@ -1337,9 +1264,7 @@ def run_inference(
     print(f"CUDA available         : {torch_mod.cuda.is_available()}")
     print(f"inference device       : {device}")
     print(f"inference dtype        : {dtype_str}")
-    default_checkpoint = (
-        f"<default: {COWTRACKER_MODEL_REPO}/{COWTRACKER_MODEL_FILENAME}>"
-    )
+    default_checkpoint = f"<default: {COWTRACKER_MODEL_REPO}/{COWTRACKER_MODEL_FILENAME}>"
     print(f"checkpoint             : {args.checkpoint or default_checkpoint}")
     print(f"model class            : {model_cls_name} (repo {COWTRACKER_REPO})")
 
@@ -1362,9 +1287,7 @@ def run_inference(
         with autocast_ctx:
             # Upstream API: `queries` is unused by the model (dense tracker).
             predictions = model.forward(video=video_rotated, queries=None)
-            track = (
-                predictions["track"][0].detach().float().cpu().numpy()
-            )  # [T, Hi, Wi, 2]
+            track = predictions["track"][0].detach().float().cpu().numpy()  # [T, Hi, Wi, 2]
             vis = predictions["vis"][0].detach().float().cpu().numpy()  # [T, Hi, Wi]
             conf = predictions["conf"][0].detach().float().cpu().numpy()  # [T, Hi, Wi]
 
@@ -1415,15 +1338,9 @@ def sample_and_export(
     )
 
     # Bilinear sampling of the dense track / vis / conf at each query.
-    track_inf = sample_dense_field(
-        dense["track"], query_inf[:, 0], query_inf[:, 1]
-    )  # [T, N, 2]
-    visibility = sample_dense_field(
-        dense["vis"], query_inf[:, 0], query_inf[:, 1]
-    )  # [T, N]
-    raw_confidence = sample_dense_field(
-        dense["conf"], query_inf[:, 0], query_inf[:, 1]
-    )  # [T, N]
+    track_inf = sample_dense_field(dense["track"], query_inf[:, 0], query_inf[:, 1])  # [T, N, 2]
+    visibility = sample_dense_field(dense["vis"], query_inf[:, 0], query_inf[:, 1])  # [T, N]
+    raw_confidence = sample_dense_field(dense["conf"], query_inf[:, 0], query_inf[:, 1])  # [T, N]
 
     # Convert every tracked coordinate back to original source pixels (kept
     # as float64 so full positional precision is preserved in the outputs).
@@ -1449,18 +1366,10 @@ def sample_and_export(
     # one go instead of aborting on the first one.
     ref_errors = reference_error_px(track_src, query_src, plan.reference_seq_index)
     max_err = float(np.max(ref_errors)) if N else 0.0
-    print(
-        f"reference reconstruction error: max {max_err:.6f} px (limit {plan.reference_error_limit} px)"
-    )
-    over = [
-        n
-        for n, p in enumerate(plan.points)
-        if ref_errors[n] > plan.reference_error_limit
-    ]
+    print(f"reference reconstruction error: max {max_err:.6f} px (limit {plan.reference_error_limit} px)")
+    over = [n for n, p in enumerate(plan.points) if ref_errors[n] > plan.reference_error_limit]
     if over:
-        detail = "\n".join(
-            f"  point {plan.points[n].id!r}: {ref_errors[n]:.4f} px" for n in over
-        )
+        detail = "\n".join(f"  point {plan.points[n].id!r}: {ref_errors[n]:.4f} px" for n in over)
         raise AdapterError(
             f"{len(over)} point(s) exceed --reference-error-limit "
             f"{plan.reference_error_limit} px (max {max_err:.4f} px):\n{detail}"
@@ -1471,9 +1380,7 @@ def sample_and_export(
     write_tracks_json(plan.output_path, plan, track_src, confidence, provenance)
     print(f"wrote {plan.output_path}")
     if plan.csv_output:
-        write_tracks_csv(
-            plan.csv_output, plan, track_src, confidence, visibility, raw_confidence
-        )
+        write_tracks_csv(plan.csv_output, plan, track_src, confidence, visibility, raw_confidence)
         print(f"wrote {plan.csv_output}")
     if plan.save_sampled:
         write_sampled_npz(
@@ -1490,22 +1397,16 @@ def sample_and_export(
         write_dense_npz(plan.save_dense, dense, provenance)
         print(f"wrote {plan.save_dense}")
     if plan.diagnostics_dir:
-        written = write_diagnostics_stills(
-            plan, track_src, confidence, plan.diagnostics_dir
-        )
+        written = write_diagnostics_stills(plan, track_src, confidence, plan.diagnostics_dir)
         print(f"wrote {len(written)} diagnostic still(s) to {plan.diagnostics_dir}")
     if plan.diagnostic_video:
         write_diagnostic_video(plan, track_src, confidence, plan.diagnostic_video)
         print(f"wrote {plan.diagnostic_video}")
 
-    print(
-        f"emitted {T} frame(s) x {N} point(s) with confidence mode {plan.confidence_mode}"
-    )
+    print(f"emitted {T} frame(s) x {N} point(s) with confidence mode {plan.confidence_mode}")
 
 
-def export_from_sampled(
-    plan: RunPlan, args: argparse.Namespace, data: dict[str, Any]
-) -> None:
+def export_from_sampled(plan: RunPlan, args: argparse.Namespace, data: dict[str, Any]) -> None:
     if plan.save_dense:
         raise AdapterError(
             "--save-dense requires a fresh inference run; it cannot be "
@@ -1527,9 +1428,7 @@ def export_from_sampled(
     write_tracks_json(plan.output_path, plan, track_src, confidence, provenance)
     print(f"wrote {plan.output_path} (from {args.sampled_input})")
     if plan.csv_output:
-        write_tracks_csv(
-            plan.csv_output, plan, track_src, confidence, visibility, raw_confidence
-        )
+        write_tracks_csv(plan.csv_output, plan, track_src, confidence, visibility, raw_confidence)
         print(f"wrote {plan.csv_output}")
     if plan.save_sampled:
         write_sampled_npz(
@@ -1543,9 +1442,7 @@ def export_from_sampled(
         )
         print(f"wrote {plan.save_sampled}")
     if plan.diagnostics_dir:
-        written = write_diagnostics_stills(
-            plan, track_src, confidence, plan.diagnostics_dir
-        )
+        written = write_diagnostics_stills(plan, track_src, confidence, plan.diagnostics_dir)
         print(f"wrote {len(written)} diagnostic still(s) to {plan.diagnostics_dir}")
     if plan.diagnostic_video:
         write_diagnostic_video(plan, track_src, confidence, plan.diagnostic_video)
@@ -1562,12 +1459,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("run_dir", help="fabsim run directory containing frames.json")
-    parser.add_argument(
-        "--role", default="diffuse", help="image_<role> key to track (default: diffuse)"
-    )
-    parser.add_argument(
-        "--points", help="explicit point file {points:[{id,x,y}]} (primary mode)"
-    )
+    parser.add_argument("--role", default="diffuse", help="image_<role> key to track (default: diffuse)")
+    parser.add_argument("--points", help="explicit point file {points:[{id,x,y}]} (primary mode)")
     parser.add_argument(
         "--grid-cols",
         type=int,
@@ -1608,9 +1501,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--cowtracker-root",
         help="path to a CoWTracker checkout (else the cowtracker package must be installed)",
     )
-    parser.add_argument(
-        "--checkpoint", help="model checkpoint path (default: HuggingFace download)"
-    )
+    parser.add_argument("--checkpoint", help="model checkpoint path (default: HuggingFace download)")
     parser.add_argument(
         "--device",
         choices=("cuda", "cpu"),

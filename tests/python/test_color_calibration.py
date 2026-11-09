@@ -36,15 +36,11 @@ def test_channels_brightness_and_exposure_are_stable():
     assert out[0, 0, 2] > out[0, 0, 1] > out[0, 0, 0]
     assert np.allclose(out, apply_model(rgb, model, exposure_ms=15.0))
     with pytest.raises(ValueError):
-        apply_model(
-            rgb, model, exposure_ms=25.0
-        )  # an exposure mismatch must not be silently scaled
+        apply_model(rgb, model, exposure_ms=25.0)  # an exposure mismatch must not be silently scaled
 
 
 def test_diffuse_and_point_models_round_trip_separately(tmp_path):
-    bundle = ColorCalibration(
-        1, identity(15.0, "diffuse.npy"), identity(15.0, "point.npy", 0.5)
-    )
+    bundle = ColorCalibration(1, identity(15.0, "diffuse.npy"), identity(15.0, "point.npy", 0.5))
 
     path = tmp_path / "calibration.json"
     save_bundle(path, bundle)

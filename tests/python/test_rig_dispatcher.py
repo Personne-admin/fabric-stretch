@@ -55,9 +55,7 @@ def rig(tmp_path):
 
 
 def sequential(**kw):
-    return MeasurementSettings(
-        count=3, step_size=100, capture_mode="sequential", settle_ms=0, **kw
-    )
+    return MeasurementSettings(count=3, step_size=100, capture_mode="sequential", settle_ms=0, **kw)
 
 
 def test_complete_run_writes_consistent_files(rig):
@@ -72,14 +70,8 @@ def test_complete_run_writes_consistent_files(rig):
         rig.read("frames.json"),
         rig.read("force.json"),
     )
-    assert (
-        meta["status"] == "complete"
-        and meta["abort_reason"] is None
-        and meta["frames_written"] == 3
-    )
-    assert (
-        meta["simulated"] is True and meta["schema_version"] == session.SCHEMA_VERSION
-    )
+    assert meta["status"] == "complete" and meta["abort_reason"] is None and meta["frames_written"] == 3
+    assert meta["simulated"] is True and meta["schema_version"] == session.SCHEMA_VERSION
     assert meta["led_config"] == LED and [c["role"] for c in meta["capture_plan"]] == [
         "diffuse", "ps_1", "ps_2", "ps_3"
     ]  # fmt: skip
@@ -151,9 +143,7 @@ def test_exposure_within_tolerance_is_corrected_and_stamped_with_the_read_back_v
 
     cam = DriftingCamera()
     cam.open()
-    d = rig.dispatcher(
-        sequential(), camera=cam, color_bundle=ColorCalibration(1, model, model)
-    )
+    d = rig.dispatcher(sequential(), camera=cam, color_bundle=ColorCalibration(1, model, model))
     d.prepare()
     d.run()
     meta = rig.read("session.json")
@@ -178,9 +168,7 @@ def test_failure_to_finalise_session_json_is_reported(rig, monkeypatch):
 
 
 def test_relaxation_hold_adds_a_second_frame_for_the_same_step(rig):
-    d = rig.dispatcher(
-        sequential(relax_enabled=True, relax_indices=[1], relax_duration_ms=100)
-    )
+    d = rig.dispatcher(sequential(relax_enabled=True, relax_indices=[1], relax_duration_ms=100))
 
     d.prepare()
     d.run()
@@ -200,9 +188,7 @@ def test_failed_capture_records_no_file_names_and_aborts(rig):
         def capture_frame(self):
             self.calls = getattr(self, "calls", 0) + 1
 
-            return (
-                None if self.calls == 5 else super().capture_frame()
-            )  # 2nd shot of the 2nd frame
+            return None if self.calls == 5 else super().capture_frame()  # 2nd shot of the 2nd frame
 
     cam = FlakyCamera()
     cam.open()
@@ -211,18 +197,11 @@ def test_failed_capture_records_no_file_names_and_aborts(rig):
     d.run()
 
     meta, frames = rig.read("session.json"), rig.read("frames.json")["frames"]
-    assert rig.done[0][0] == "error" and meta["abort_reason"].startswith(
-        "error: camera returned no frame"
-    )
+    assert rig.done[0][0] == "error" and meta["abort_reason"].startswith("error: camera returned no frame")
 
     assert len(frames) == 1  # the incomplete second frame is not recorded
     on_disk = {p.name for p in (rig.run_dir / "images").iterdir()}
-    assert all(
-        name in on_disk
-        for f in frames
-        for key, name in f.items()
-        if key.startswith("image_")
-    )
+    assert all(name in on_disk for f in frames for key, name in f.items() if key.startswith("image_"))
     assert rig.port.led_mask == 0 and rig.port.power == 0
 
 
@@ -239,9 +218,7 @@ def test_exception_sets_abort_reason_and_cleans_up(rig):
     meta = rig.read("session.json")
     assert meta["status"] == "error" and meta["abort_reason"] == "error: sensor on fire"
     assert rig.done == [("error", "error: sensor on fire")]
-    assert (
-        rig.port.led_mask == 0 and rig.port.power == 0 and rig.port.limit_n == 0
-    )  # force limit disarmed
+    assert rig.port.led_mask == 0 and rig.port.power == 0 and rig.port.limit_n == 0  # force limit disarmed
 
 
 def test_unconfirmed_leds_abort_the_run_without_a_dark_frame(tmp_path):
@@ -263,10 +240,7 @@ def test_firmware_force_trip_stops_the_run(rig):
     d.prepare()
     d.run()
     meta = rig.read("session.json")
-    assert (
-        rig.done[0][0] == "aborted"
-        and meta["abort_reason"] == "firmware_force_limit (20.0 N)"
-    )
+    assert rig.done[0][0] == "aborted" and meta["abort_reason"] == "firmware_force_limit (20.0 N)"
     assert meta["frames_written"] == 2
 
 
@@ -275,10 +249,7 @@ def test_firmware_trip_without_move_done_is_reported(rig):
     rig.port.force_per_step = 0.1
     rig.port.limit_n = 15.0
     replies = rig.port._answer("+200")
-    assert (
-        any(line.startswith("LIMIT_TRIP") for line in replies)
-        and "MOVE_DONE" not in replies
-    )
+    assert any(line.startswith("LIMIT_TRIP") for line in replies) and "MOVE_DONE" not in replies
 
     rig.port.limit_n = 0.0
     rig.port.position = 0
@@ -297,9 +268,7 @@ def test_a_move_that_never_completes_aborts_with_move_timeout(tmp_path, monkeypa
         d.prepare()
         d.run()
         meta = r.read("session.json")
-        assert r.done[0][0] == "aborted" and meta["abort_reason"].startswith(
-            "move_timeout"
-        )
+        assert r.done[0][0] == "aborted" and meta["abort_reason"].startswith("move_timeout")
         assert meta["frames_written"] == 1 and r.port.led_mask == 0
     finally:
         r.ctrl.disconnect()
@@ -312,9 +281,9 @@ def test_unarmed_force_limit_aborts_before_the_first_move(tmp_path, monkeypatch)
         d = r.dispatcher(sequential(max_force_n=15.0))
         d.prepare()
         d.run()
-        assert r.done[0][0] == "aborted" and r.read("session.json")[
-            "abort_reason"
-        ].startswith("force_limit_not_armed")
+        assert r.done[0][0] == "aborted" and r.read("session.json")["abort_reason"].startswith(
+            "force_limit_not_armed"
+        )
         assert r.read("session.json")["frames_written"] == 0
         assert not any(cmd.startswith(("+", "-")) for cmd in r.port.log)
     finally:
@@ -344,9 +313,7 @@ def test_software_force_limit_stops_the_run(tmp_path):
         d.prepare()
         d.run()
         meta = r.read("session.json")
-        assert r.done[0][0] == "aborted" and meta["abort_reason"].startswith(
-            "force_limit_exceeded"
-        )
+        assert r.done[0][0] == "aborted" and meta["abort_reason"].startswith("force_limit_exceeded")
         assert meta["frames_written"] == 3  # the frame that exceeded the limit is kept
     finally:
         r.ctrl.disconnect()
@@ -371,9 +338,7 @@ def test_cancel_before_start_is_recorded(rig):
 
 def test_threaded_run_and_progress_callbacks(rig):
     progress = []
-    d = rig.dispatcher(
-        sequential(), on_progress=lambda cur, total: progress.append((cur, total))
-    )
+    d = rig.dispatcher(sequential(), on_progress=lambda cur, total: progress.append((cur, total)))
     d.start()
     d.join(timeout=20)
     assert not d.running and progress == [(1, 3), (2, 3), (3, 3)]
@@ -413,9 +378,7 @@ def test_dark_frame_statistic_is_kept_per_role(rig):
     from PIL import Image
 
     d._check_brightness(Image.fromarray(bright), "ps_1", "a.png")
-    d._check_brightness(
-        Image.fromarray(dark), "ps_b_1", "b.png"
-    )  # a different role: no warning
+    d._check_brightness(Image.fromarray(dark), "ps_b_1", "b.png")  # a different role: no warning
     assert not any("missed illumination" in line for line in rig.logs)
     d._check_brightness(Image.fromarray(dark), "ps_1", "c.png")
     assert any("missed illumination" in line for line in rig.logs)
@@ -441,9 +404,7 @@ def test_colour_correction_stamp_and_raw_copies(rig, tmp_path):
         )
 
     matching = ColorCalibration(1, model(15.0), model(15.0))
-    d = rig.dispatcher(
-        sequential(include_diffuse=True), color_bundle=matching, keep_raw=True
-    )
+    d = rig.dispatcher(sequential(include_diffuse=True), color_bundle=matching, keep_raw=True)
     d.prepare()
     d.run()
     stamp = rig.read("session.json")["color_calibration"]
@@ -454,9 +415,7 @@ def test_colour_correction_stamp_and_raw_copies(rig, tmp_path):
 
     assert stamp["exposure_ms"] == 15.0
     assert "chart.png" in rig.read("color_calibration.json")["diffuse"]["source_file"]
-    assert (
-        "/" not in rig.read("color_calibration.json")["diffuse"]["source_file"]
-    )  # no directories
+    assert "/" not in rig.read("color_calibration.json")["diffuse"]["source_file"]  # no directories
 
     # A bundle for another exposure is not applied, and the stamp says so explicitly.
     other = Rig(tmp_path / "other")

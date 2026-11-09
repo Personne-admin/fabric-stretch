@@ -47,9 +47,7 @@ REFERENCE_LAB = np.array(
 )
 D50 = np.array([0.96422, 1.0, 0.82521])
 D65 = np.array([0.95047, 1.0, 1.08883])
-BRADFORD = np.array(
-    [[0.8951, 0.2664, -0.1614], [-0.7502, 1.7135, 0.0367], [0.0389, -0.0685, 1.0296]]
-)
+BRADFORD = np.array([[0.8951, 0.2664, -0.1614], [-0.7502, 1.7135, 0.0367], [0.0389, -0.0685, 1.0296]])
 XYZ_TO_RGB = np.array(
     [
         [3.2404542, -1.5371385, -0.4985314],
@@ -89,9 +87,7 @@ def _design(rgb: np.ndarray, fit: str) -> np.ndarray:
     if fit == "rootpoly2":
         r, g, b = rgb.T
 
-        return np.column_stack(
-            (r, g, b, np.sqrt(r * g), np.sqrt(r * b), np.sqrt(g * b), np.ones(len(rgb)))
-        )
+        return np.column_stack((r, g, b, np.sqrt(r * g), np.sqrt(r * b), np.sqrt(g * b), np.ones(len(rgb))))
     raise ValueError(f"unknown fit type: {fit}")
 
 
@@ -99,9 +95,7 @@ def _decode(values: np.ndarray, encoding: str) -> np.ndarray:
     if encoding == "linear":
         return values
 
-    return np.where(
-        values <= 0.04045, values / 12.92, ((values + 0.055) / 1.055) ** 2.4
-    )
+    return np.where(values <= 0.04045, values / 12.92, ((values + 0.055) / 1.055) ** 2.4)
 
 
 def _encode(values: np.ndarray) -> np.ndarray:
@@ -142,15 +136,8 @@ def fit_model(
     reference_white="D65",
 ) -> CalibrationModel:
     patches = np.asarray(patches_rgb, np.float64)
-    if (
-        patches.ndim != 2
-        or patches.shape[1] != 3
-        or len(patches) % 30
-        or not np.isfinite(patches).all()
-    ):
-        raise ValueError(
-            "patches must be finite N*30x3 RGB, one 30-patch chart per image"
-        )
+    if patches.ndim != 2 or patches.shape[1] != 3 or len(patches) % 30 or not np.isfinite(patches).all():
+        raise ValueError("patches must be finite N*30x3 RGB, one 30-patch chart per image")
     normalized = np.clip(patches / input_scale, 0, 1)
     clipped = np.flatnonzero(normalized.max(axis=1) >= 0.9995)
     if clipped.size:
@@ -162,9 +149,7 @@ def fit_model(
             stacklevel=2,
         )
     white = D65 if reference_white.upper() == "D65" else D50
-    xyz = np.tile(
-        _adapt(_lab_to_xyz(REFERENCE_LAB, white), white, D65), (len(patches) // 30, 1)
-    )
+    xyz = np.tile(_adapt(_lab_to_xyz(REFERENCE_LAB, white), white, D65), (len(patches) // 30, 1))
     coefficients, *_ = np.linalg.lstsq(
         _design(_decode(normalized, input_encoding), fit_type), xyz, rcond=None
     )
@@ -184,9 +169,7 @@ def fit_model(
     )
 
 
-def apply_model(
-    rgb: np.ndarray, model: CalibrationModel, *, exposure_ms: float
-) -> np.ndarray:
+def apply_model(rgb: np.ndarray, model: CalibrationModel, *, exposure_ms: float) -> np.ndarray:
     if abs(exposure_ms - model.exposure_ms) > 1e-6:
         raise ValueError(
             f"exposure {exposure_ms} ms does not match calibration exposure {model.exposure_ms} ms"
@@ -194,9 +177,7 @@ def apply_model(
     values = np.asarray(rgb, np.float64) / model.input_scale
     linear = _decode(np.clip(values, 0, 1), model.input_encoding)
     shape = linear.shape
-    xyz = _design(linear.reshape(-1, 3), model.fit_type) @ np.asarray(
-        model.coefficients
-    )
+    xyz = _design(linear.reshape(-1, 3), model.fit_type) @ np.asarray(model.coefficients)
 
     return np.clip(_encode(xyz @ XYZ_TO_RGB.T), 0, 1).reshape(shape)
 

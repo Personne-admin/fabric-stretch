@@ -44,7 +44,6 @@ DONE_ERROR = "error"
 
 
 class RunAbort(Exception):
-
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
@@ -55,7 +54,6 @@ class CaptureError(RuntimeError):
 
 
 class AutomaticDispatcher:
-
     def __init__(
         self,
         ctrl: ArduinoController,
@@ -110,9 +108,7 @@ class AutomaticDispatcher:
         if self.running:
             return
         self.prepare()
-        self._thread = threading.Thread(
-            target=self.run, name="measurement", daemon=True
-        )
+        self._thread = threading.Thread(target=self.run, name="measurement", daemon=True)
         self._thread.start()
 
     def join(self, timeout: float | None = None) -> None:
@@ -139,10 +135,7 @@ class AutomaticDispatcher:
             "exposure_ms_requested": s.cam_exposure_ms,
             "exposure_ms_actual": actual_ms,
         }
-        simulated = bool(
-            getattr(self.cam, "simulated", False)
-            or getattr(self.ctrl, "simulated", False)
-        )
+        simulated = bool(getattr(self.cam, "simulated", False) or getattr(self.ctrl, "simulated", False))
         self.corrector = ColorCorrector(
             self._color_bundle, actual_ms, self._keep_raw, self.run_dir, self._log
         )
@@ -230,13 +223,9 @@ class AutomaticDispatcher:
         for i in range(s.count):
             if self._cancel.is_set():
                 return
-            displacement_mm = round(
-                self.mechanics.displacement_mm(travelled_steps(s.step_size, i)), 6
-            )
+            displacement_mm = round(self.mechanics.displacement_mm(travelled_steps(s.step_size, i)), 6)
             if s.max_stretch_mm > 0 and displacement_mm > s.max_stretch_mm:
-                raise RunAbort(
-                    f"stretch_limit_exceeded ({displacement_mm:g} mm > {s.max_stretch_mm:g} mm)"
-                )
+                raise RunAbort(f"stretch_limit_exceeded ({displacement_mm:g} mm > {s.max_stretch_mm:g} mm)")
 
             self._log(f"Capture {i + 1}/{s.count}")
             if s.step_size != 0 and i > 0 and not self._jog_and_wait(signed):
@@ -246,9 +235,7 @@ class AutomaticDispatcher:
                 return
             self._check_firmware_trip()
 
-            record = self._capture_state(
-                i, displacement_mm, str(i), is_relaxation_hold=False
-            )
+            record = self._capture_state(i, displacement_mm, str(i), is_relaxation_hold=False)
             if record is None or self._check_force_safety(record):
                 return
 
@@ -257,9 +244,7 @@ class AutomaticDispatcher:
                 self._sleep(s.relax_duration_ms / 1000.0)
                 if self._cancel.is_set():
                     return
-                record = self._capture_state(
-                    i, displacement_mm, f"{i}_R", is_relaxation_hold=True
-                )
+                record = self._capture_state(i, displacement_mm, f"{i}_R", is_relaxation_hold=True)
                 if record is None or self._check_force_safety(record):
                     return
             if self.on_progress:
@@ -268,22 +253,15 @@ class AutomaticDispatcher:
     def _arm_force_limit(self, signed_steps: int) -> None:
         s = self.settings
         release = s.release_steps if s.step_size != 0 else 0
-        self.ctrl.set_force_limit(
-            s.max_force_n, release, release_dir_positive=signed_steps < 0
-        )
+        self.ctrl.set_force_limit(s.max_force_n, release, release_dir_positive=signed_steps < 0)
         self._limit_armed = True
         if not self.ctrl.wait_limit_armed(LIMIT_ARM_TIMEOUT_S):
-            raise RunAbort(
-                "force_limit_not_armed (no LIMIT_ARMED reply from the controller)"
-            )
+            raise RunAbort("force_limit_not_armed (no LIMIT_ARMED reply from the controller)")
 
     def _jog_and_wait(self, signed_steps: int) -> bool:
         s = self.settings
         self.ctrl.jog(signed_steps)
-        timeout = (
-            move_duration_s(signed_steps, s.speed_mult) * MOVE_TIMEOUT_FACTOR
-            + MOVE_TIMEOUT_SLACK_S
-        )
+        timeout = move_duration_s(signed_steps, s.speed_mult) * MOVE_TIMEOUT_FACTOR + MOVE_TIMEOUT_SLACK_S
         deadline = time.monotonic() + timeout
         while not self.ctrl.wait_move_done(0.05):
             if self._cancel.is_set():
@@ -387,9 +365,7 @@ class AutomaticDispatcher:
                 f"  WARNING: {fname} mean {mean8:.1f} << running median {median:.1f}, "
                 "possible missed illumination"
             )
-        self._role_brightness[role] = (
-            mean8 if median is None else 0.9 * median + 0.1 * mean8
-        )
+        self._role_brightness[role] = mean8 if median is None else 0.9 * median + 0.1 * mean8
 
     def _read_force(self, index: int, label: str) -> dict:
         record = session.blank_force_record(index, label)
@@ -399,11 +375,7 @@ class AutomaticDispatcher:
 
             return record
         record["raw"] = line
-        telemetry = (
-            protocol.parse_force_telemetry(line)
-            if "BUSY" not in line and "N/A" not in line
-            else None
-        )
+        telemetry = protocol.parse_force_telemetry(line) if "BUSY" not in line and "N/A" not in line else None
         if telemetry is None:
             record["status"] = "invalid"
             self._log(f"  WARNING: controller returned {line!r}")

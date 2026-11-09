@@ -22,16 +22,11 @@ def validate_run(run: Path) -> tuple[list[str], list[str]]:  # (errors, warnings
     missing_images = missing_force = without_ps = 0
 
     for frame in frames:
-        if not (
-            frame.get("image_diffuse")
-            and dataset.image_path(run, frame["image_diffuse"]).is_file()
-        ):
+        if not (frame.get("image_diffuse") and dataset.image_path(run, frame["image_diffuse"]).is_file()):
             missing_images += 1
         if not dataset.has_ps(frame):
             without_ps += 1
-        elif not all(
-            dataset.image_path(run, frame[key]).is_file() for key in dataset.PS_KEYS
-        ):
+        elif not all(dataset.image_path(run, frame[key]).is_file() for key in dataset.PS_KEYS):
             missing_images += 1
 
         if dataset.force_for_frame(frame, forces) is None:

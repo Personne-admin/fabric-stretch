@@ -26,9 +26,8 @@ def sphere(size=96, albedo=0.5):
     ys, xs = np.mgrid[0:size, 0:size].astype(np.float32)
     x, y = (xs - size / 2) / (size * 0.4), -(ys - size / 2) / (size * 0.4)
 
-    n = np.stack([x, y, np.sqrt(np.clip(1 - r2, 0, None))], axis=-1)
-
     r2 = x * x + y * y
+    n = np.stack([x, y, np.sqrt(np.clip(1 - r2, 0, None))], axis=-1)
     inside = r2 < 0.9
     n[~inside] = (0, 0, 1)
 
@@ -69,9 +68,7 @@ def write_run(root, name="run", led=LED, frames=2, gains=(1.0, 1.0, 1.0)):
         record["image_diffuse"] = fname
         records.append(record)
     (run / "frames.json").write_text(json.dumps({"frames": records}))
-    (run / "session.json").write_text(
-        json.dumps({"cam_exposure_ms": 15.0, "led_config": led})
-    )
+    (run / "session.json").write_text(json.dumps({"cam_exposure_ms": 15.0, "led_config": led}))
 
     return run, normals, inside
 
@@ -90,9 +87,7 @@ def test_detect_mode():
 
     mode, caps = ps_process.detect_mode_from_frames(frames)
     assert mode == "white" and caps["has_polarization"] and caps["ps_count"] == 3
-    assert (
-        ps_process.detect_mode_from_frames({"frames": [{"image_rgb": "x"}]})[0] == "rgb"
-    )
+    assert ps_process.detect_mode_from_frames({"frames": [{"image_rgb": "x"}]})[0] == "rgb"
     assert ps_process.detect_mode_from_frames({"frames": []}) == ("unknown", {})
 
 
@@ -104,15 +99,11 @@ def test_light_comes_from_the_session_snapshot(tmp_path, monkeypatch):
     assert data.light.azimuths_deg == (91.27, 334.26, 211.16)
 
 
-def test_missing_snapshot_falls_back_to_the_explicit_file_then_the_packaged_default(
-    tmp_path, monkeypatch
-):
+def test_missing_snapshot_falls_back_to_the_explicit_file_then_the_packaged_default(tmp_path, monkeypatch):
     monkeypatch.setenv("FABSIM_RIG_CONFIG_DIR", str(tmp_path / "no-user-config"))
     assert ps_process.resolve_light({}).source == "packaged:led_config.json"
     explicit = tmp_path / "led.json"
-    explicit.write_text(
-        json.dumps({"light_azimuths_deg": [0, 120, 240], "light_elevation_deg": 30})
-    )
+    explicit.write_text(json.dumps({"light_azimuths_deg": [0, 120, 240], "light_elevation_deg": 30}))
     assert ps_process.resolve_light({}, explicit).azimuths_deg == (0.0, 120.0, 240.0)
     user = tmp_path / "user-config"
     user.mkdir()
@@ -175,11 +166,7 @@ def test_ps_verify_detail_report(tmp_path, capsys):
     code = ps_verify.main([str(run), "--frame", "1"])
     summary = (run / "ps_verify" / "summary.txt").read_text()
     assert code in (0, 1)
-    assert (
-        "CHECK 1" in summary
-        and "re-rendering" in summary
-        and "OVERALL VERDICT" in summary
-    )
+    assert "CHECK 1" in summary and "re-rendering" in summary and "OVERALL VERDICT" in summary
     assert (run / "ps_verify" / "frame0001_rerender_compare.png").is_file()
     assert "source: session.json:led_config" in summary
     capsys.readouterr()
@@ -191,15 +178,10 @@ def test_ps_verify_comparison_table(tmp_path, capsys):
     code = ps_verify.main([str(tmp_path / "tests"), "--sample", "1"])
     out = capsys.readouterr().out
     assert code in (0, 1) and "ps_compare.txt" in out
-    assert (
-        "PS CAPTURE-CONFIG COMPARISON (2 runs"
-        in (tmp_path / "tests" / "ps_compare.txt").read_text()
-    )
+    assert "PS CAPTURE-CONFIG COMPARISON (2 runs" in (tmp_path / "tests" / "ps_compare.txt").read_text()
 
 
-@pytest.mark.parametrize(
-    "module", ["fabsim.rig.ps_verify", "fabsim.rig.ps_process", "fabsim.rig.dispatcher"]
-)
+@pytest.mark.parametrize("module", ["fabsim.rig.ps_verify", "fabsim.rig.ps_process", "fabsim.rig.dispatcher"])
 def test_headless_modules_do_not_import_tkinter(module):
     code = f"import sys, {module}; sys.exit(1 if 'tkinter' in sys.modules else 0)"
     assert subprocess.run([sys.executable, "-c", code], check=False).returncode == 0

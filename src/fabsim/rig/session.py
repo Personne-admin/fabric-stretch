@@ -35,11 +35,7 @@ def build_capture_plan(settings: MeasurementSettings, led_config: dict) -> Captu
             f"Set A needs exactly three LEDs (A1-A3), {len(set_a)} are mapped; use Identify LEDs first."
         )
     azimuths = led_config.get("light_azimuths_deg")
-    if (
-        not isinstance(azimuths, list)
-        or len(azimuths) != 3
-        or led_config.get("light_elevation_deg") is None
-    ):
+    if not isinstance(azimuths, list) or len(azimuths) != 3 or led_config.get("light_elevation_deg") is None:
         raise CapturePlanError(
             "The light directions of set A are not calibrated; run Calibrate Light Angles first."
         )
@@ -67,9 +63,7 @@ def plan_to_json(plan: CapturePlan) -> list[dict]:
 
 
 def run_dir_in_use(path: Path) -> bool:
-    return any(
-        (path / name).exists() for name in ("session.json", "frames.json", "force.json")
-    )
+    return any((path / name).exists() for name in ("session.json", "frames.json", "force.json"))
 
 
 def next_free_run_dir(base: Path) -> Path:
@@ -83,11 +77,7 @@ def next_free_run_dir(base: Path) -> Path:
 
 
 def run_dir_for(project_dir: Path, settings: MeasurementSettings) -> Path:
-    return (
-        project_dir
-        / settings.sample_id.strip()
-        / f"{settings.direction}_{settings.motion_mode}"
-    )
+    return project_dir / settings.sample_id.strip() / f"{settings.direction}_{settings.motion_mode}"
 
 
 def local_now() -> str:
@@ -183,11 +173,8 @@ def build_session_meta(
         "step_size": signed,
         "commanded_step_count": settings.step_size,
         "commanded_motor_steps_per_increment": settings.step_size,
-        "requested_displacement_um_per_increment": settings.step_size
-        * mechanics.linear_um_per_motor_step,
-        "travelled_displacement_um_per_increment": travelled_steps(
-            settings.step_size, 1
-        )
+        "requested_displacement_um_per_increment": settings.step_size * mechanics.linear_um_per_motor_step,
+        "travelled_displacement_um_per_increment": travelled_steps(settings.step_size, 1)
         * mechanics.linear_um_per_motor_step,
         **mechanics.as_session_fields(),
         "capture_mode": settings.capture_mode,
@@ -215,7 +202,6 @@ def build_session_meta(
 
 @dataclass
 class SessionWriter:
-
     run_dir: Path
     meta: dict
     mechanics: MotorMechanics = DEFAULT_MOTOR_MECHANICS
@@ -259,12 +245,8 @@ class SessionWriter:
                 "branch": m["motion_mode"],
                 "motion_mode": m["motion_mode"],
                 "clamp_width_m": m["clamp_width_m"],
-                "commanded_motor_steps_per_increment": m[
-                    "commanded_motor_steps_per_increment"
-                ],
-                "requested_displacement_um_per_increment": m[
-                    "requested_displacement_um_per_increment"
-                ],
+                "commanded_motor_steps_per_increment": m["commanded_motor_steps_per_increment"],
+                "requested_displacement_um_per_increment": m["requested_displacement_um_per_increment"],
                 **self.mechanics.as_session_fields(),
                 "frames": self.frames,
             },

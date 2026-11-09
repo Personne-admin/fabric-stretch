@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the Python sphere fixture and lint/format checks.
+
 ## [0.1.0] - 2026-11-08
 
 First release of the consolidated repository. This release contains `fabsim` 0.3.0 and `fabric-viewer` 0.1.0.

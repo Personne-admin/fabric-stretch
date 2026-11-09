@@ -8,7 +8,6 @@ SIMULATED_PORT = "SIMULATED"
 
 
 class FakePort:
-
     def __init__(
         self,
         name: str = SIMULATED_PORT,
@@ -87,14 +86,8 @@ class FakePort:
             steps = int(rest or 0)
             self.position += steps if head == "+" else -steps
             replies = [f"jog: {head}{steps}"]
-            if (
-                self.firmware_trips
-                and self.limit_n > 0
-                and abs(self.force_n()) >= self.limit_n
-            ):
-                replies.append(
-                    self._telemetry("LIMIT_TRIP") + f" limit_n={self.limit_n:.6f}"
-                )
+            if self.firmware_trips and self.limit_n > 0 and abs(self.force_n()) >= self.limit_n:
+                replies.append(self._telemetry("LIMIT_TRIP") + f" limit_n={self.limit_n:.6f}")
             elif steps and self.answer_moves:
                 replies.append("MOVE_DONE")
 

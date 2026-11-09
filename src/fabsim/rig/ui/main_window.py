@@ -58,9 +58,7 @@ class App(ThreadBridge, tk.Tk):
             self._presets = config.load_presets()
             self.led_config = config.load_led_config()
         except config.ConfigError as exc:
-            messagebox.showerror(
-                "Configuration", f"{exc}\n\nThe packaged defaults are used instead."
-            )
+            messagebox.showerror("Configuration", f"{exc}\n\nThe packaged defaults are used instead.")
             self._presets = config.load_packaged_json(config.PRESETS_FILE)
             self.led_config = config.load_packaged_json(config.LED_CONFIG_FILE)
         self._refresh_preset_list()
@@ -70,14 +68,9 @@ class App(ThreadBridge, tk.Tk):
                 f"No {config.LED_CONFIG_FILE} in {config.config_dir()}: using the packaged defaults."
             )
 
-    def update_led_mapping(
-        self, pol_a: list[int], pol_b: list[int], diffuse_mask: int
-    ) -> None:
+    def update_led_mapping(self, pol_a: list[int], pol_b: list[int], diffuse_mask: int) -> None:
         merged = config.merge_led_config(self.led_config, pol_a, pol_b, diffuse_mask)
-        cleared = (
-            "light_azimuths_deg" in self.led_config
-            and "light_azimuths_deg" not in merged
-        )
+        cleared = "light_azimuths_deg" in self.led_config and "light_azimuths_deg" not in merged
         self.led_config = merged
         config.save_led_config(merged)
         self.append_log(f"LED mapping saved: {merged}")
@@ -87,18 +80,14 @@ class App(ThreadBridge, tk.Tk):
                 "Run 'Calibrate Light Angles' before using photometric stereo."
             )
 
-    def save_light_geometry(
-        self, elevation_deg: float, azimuths_deg: list[float]
-    ) -> None:
+    def save_light_geometry(self, elevation_deg: float, azimuths_deg: list[float]) -> None:
         self.led_config = {
             **self.led_config,
             "light_elevation_deg": elevation_deg,
             "light_azimuths_deg": azimuths_deg,
         }
         config.save_led_config(self.led_config)
-        self.append_log(
-            f"Light calibration saved: elev={elevation_deg:.1f}°, az={azimuths_deg}"
-        )
+        self.append_log(f"Light calibration saved: elev={elevation_deg:.1f}°, az={azimuths_deg}")
 
     def load_color_calibration(self, path: Path | None = None):
         from ...color_calibration import load_bundle
@@ -116,9 +105,7 @@ class App(ThreadBridge, tk.Tk):
 
         if self.color_calibration is None:
             self.keep_raw_var.set(True)
-            self.lbl_color_cal.config(
-                text="No color calibration loaded: raw images are saved."
-            )
+            self.lbl_color_cal.config(text="No color calibration loaded: raw images are saved.")
         else:
             self.keep_raw_var.set(False)
             exposure = self.color_calibration.diffuse.exposure_ms
@@ -133,30 +120,22 @@ class App(ThreadBridge, tk.Tk):
 
         ttk.Label(conn, text="Port:").pack(side="left")
         self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(
-            conn, textvariable=self.port_var, width=18, state="readonly"
-        )
+        self.port_combo = ttk.Combobox(conn, textvariable=self.port_var, width=18, state="readonly")
         self.port_combo.pack(side="left", padx=4)
         ttk.Button(conn, text="Refresh", command=self._refresh_ports).pack(side="left")
-        self.btn_connect = ttk.Button(
-            conn, text="Connect", command=self._toggle_connect
-        )
+        self.btn_connect = ttk.Button(conn, text="Connect", command=self._toggle_connect)
         self.btn_connect.pack(side="left", padx=4)
 
         ttk.Separator(conn, orient="vertical").pack(side="left", fill="y", padx=8)
         self.btn_cam = ttk.Button(conn, text="Open Camera", command=self._toggle_camera)
         self.btn_cam.pack(side="left", padx=4)
         self.sim_camera_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(conn, text="Simulated", variable=self.sim_camera_var).pack(
-            side="left"
-        )
+        ttk.Checkbutton(conn, text="Simulated", variable=self.sim_camera_var).pack(side="left")
         self.lbl_cam_status = ttk.Label(conn, text="Camera: closed")
         self.lbl_cam_status.pack(side="left", padx=4)
 
         ttk.Separator(conn, orient="vertical").pack(side="left", fill="y", padx=8)
-        ttk.Button(conn, text="Set Project Folder", command=self._choose_project).pack(
-            side="left"
-        )
+        ttk.Button(conn, text="Set Project Folder", command=self._choose_project).pack(side="left")
         self.lbl_project = ttk.Label(conn, text="(none)")
         self.lbl_project.pack(side="left", padx=4)
 
@@ -208,33 +187,21 @@ class App(ThreadBridge, tk.Tk):
         self.jog_var = tk.IntVar(value=200)
         ttk.Entry(row, textvariable=self.jog_var, width=8).pack(side="left", padx=4)
         ttk.Button(row, text="<- Left", command=lambda: self._jog(-1)).pack(side="left")
-        ttk.Button(row, text="Right ->", command=lambda: self._jog(1)).pack(
-            side="left", padx=2
-        )
+        ttk.Button(row, text="Right ->", command=lambda: self._jog(1)).pack(side="left", padx=2)
 
         row2 = ttk.Frame(man)
         row2.pack(fill="x", pady=2)
         ttk.Button(row2, text="LEDs ON", command=self._leds_on).pack(side="left")
-        ttk.Button(row2, text="LEDs OFF", command=self._leds_off).pack(
-            side="left", padx=2
-        )
-        ttk.Button(row2, text="Tension", command=self._read_tension).pack(
-            side="left", padx=2
-        )
+        ttk.Button(row2, text="LEDs OFF", command=self._leds_off).pack(side="left", padx=2)
+        ttk.Button(row2, text="Tension", command=self._read_tension).pack(side="left", padx=2)
         ttk.Button(row2, text="Tare", command=self._tare).pack(side="left", padx=2)
 
         row3 = ttk.Frame(man)
         row3.pack(fill="x", pady=2)
         ttk.Button(row3, text="Snap Photo", command=self._snap_photo).pack(side="left")
-        ttk.Button(row3, text="Live Preview", command=self._toggle_live).pack(
-            side="left", padx=2
-        )
-        ttk.Button(row3, text="Diffuse ON", command=self._diffuse_on).pack(
-            side="left", padx=2
-        )
-        ttk.Button(row3, text="Diffuse OFF", command=self._diffuse_off).pack(
-            side="left", padx=2
-        )
+        ttk.Button(row3, text="Live Preview", command=self._toggle_live).pack(side="left", padx=2)
+        ttk.Button(row3, text="Diffuse ON", command=self._diffuse_on).pack(side="left", padx=2)
+        ttk.Button(row3, text="Diffuse OFF", command=self._diffuse_off).pack(side="left", padx=2)
 
         meas = ttk.LabelFrame(parent, text="Measurement Setup", padding=6)
         meas.pack(fill="x", padx=4, pady=4)
@@ -252,15 +219,9 @@ class App(ThreadBridge, tk.Tk):
             r = ttk.Frame(meas)
             r.pack(fill="x", pady=1)
             ttk.Label(r, text=label_text, width=14, anchor="e").pack(side="left")
-            var = (
-                tk.DoubleVar(value=default)
-                if isinstance(default, float)
-                else tk.IntVar(value=default)
-            )
+            var = tk.DoubleVar(value=default) if isinstance(default, float) else tk.IntVar(value=default)
             setattr(self, attr, var)
-            ttk.Spinbox(r, from_=lo, to=hi, textvariable=var, width=10).pack(
-                side="left", padx=4
-            )
+            ttk.Spinbox(r, from_=lo, to=hi, textvariable=var, width=10).pack(side="left", padx=4)
 
         id_frame = ttk.LabelFrame(meas, text="Sample", padding=4)
         id_frame.pack(fill="x", pady=(4, 2))
@@ -269,27 +230,25 @@ class App(ThreadBridge, tk.Tk):
         r.pack(fill="x", pady=1)
         ttk.Label(r, text="Sample ID:", width=14, anchor="e").pack(side="left")
         self.sample_id_var = tk.StringVar(value=defaults.sample_id)
-        ttk.Entry(r, textvariable=self.sample_id_var, width=16).pack(
-            side="left", padx=4
-        )
+        ttk.Entry(r, textvariable=self.sample_id_var, width=16).pack(side="left", padx=4)
 
         r2 = ttk.Frame(id_frame)
         r2.pack(fill="x", pady=1)
         ttk.Label(r2, text="Direction:", width=14, anchor="e").pack(side="left")
         self.direction_var = tk.StringVar(value=defaults.direction)
         for val, label_text in [("warp", "Warp"), ("weft", "Weft"), ("bias", "Bias")]:
-            ttk.Radiobutton(
-                r2, text=label_text, variable=self.direction_var, value=val
-            ).pack(side="left", padx=4)
+            ttk.Radiobutton(r2, text=label_text, variable=self.direction_var, value=val).pack(
+                side="left", padx=4
+            )
 
         r3 = ttk.Frame(id_frame)
         r3.pack(fill="x", pady=1)
         ttk.Label(r3, text="Motion:", width=14, anchor="e").pack(side="left")
         self.motion_mode_var = tk.StringVar(value=defaults.motion_mode)
         for val, label_text in [("loading", "Loading"), ("release", "Release")]:
-            ttk.Radiobutton(
-                r3, text=label_text, variable=self.motion_mode_var, value=val
-            ).pack(side="left", padx=4)
+            ttk.Radiobutton(r3, text=label_text, variable=self.motion_mode_var, value=val).pack(
+                side="left", padx=4
+            )
 
         for label_text, attr, value, hi, inc, note in [
             (
@@ -355,9 +314,7 @@ class App(ThreadBridge, tk.Tk):
             command=self._on_mode_change,
         ).pack(anchor="w")
         self.polarization_var = tk.BooleanVar(value=defaults.polarization)
-        self.chk_pol = ttk.Checkbutton(
-            mode_frame, text="+ Polarization", variable=self.polarization_var
-        )
+        self.chk_pol = ttk.Checkbutton(mode_frame, text="+ Polarization", variable=self.polarization_var)
         self.chk_pol.pack(anchor="w", padx=18)
         self.include_diffuse_var = tk.BooleanVar(value=defaults.include_diffuse)
         self.chk_diff = ttk.Checkbutton(
@@ -368,9 +325,7 @@ class App(ThreadBridge, tk.Tk):
         self.chk_diff.pack(anchor="w", padx=18)
 
         self._dialog_buttons = [
-            ttk.Button(
-                mode_frame, text="Identify LEDs", command=self._open_led_identifier
-            ),
+            ttk.Button(mode_frame, text="Identify LEDs", command=self._open_led_identifier),
             ttk.Button(
                 mode_frame,
                 text="Calibrate Light Angles",
@@ -384,9 +339,7 @@ class App(ThreadBridge, tk.Tk):
         ]
         for i, button in enumerate(self._dialog_buttons):
             button.pack(anchor="w", pady=(4, 0) if i == 0 else (2, 0))
-        self.lbl_color_cal = ttk.Label(
-            mode_frame, text="", wraplength=260, justify="left"
-        )
+        self.lbl_color_cal = ttk.Label(mode_frame, text="", wraplength=260, justify="left")
         self.lbl_color_cal.pack(anchor="w", padx=18, pady=(2, 0))
         self.keep_raw_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
@@ -405,28 +358,22 @@ class App(ThreadBridge, tk.Tk):
         ).pack(anchor="w")
         rr1 = ttk.Frame(relax_frame)
         rr1.pack(fill="x", pady=1)
-        ttk.Button(
-            rr1, text="Select Relax Points", command=self._open_relax_dialog
-        ).pack(side="left", padx=4)
+        ttk.Button(rr1, text="Select Relax Points", command=self._open_relax_dialog).pack(side="left", padx=4)
         self.lbl_relax_pts = ttk.Label(rr1, text="Selected: None")
         self.lbl_relax_pts.pack(side="left", padx=4)
         rr2 = ttk.Frame(relax_frame)
         rr2.pack(fill="x", pady=1)
         ttk.Label(rr2, text="Duration (ms):", width=14, anchor="e").pack(side="left")
         self.relax_duration_var = tk.IntVar(value=defaults.relax_duration_ms)
-        ttk.Spinbox(
-            rr2, from_=100, to=600000, textvariable=self.relax_duration_var, width=10
-        ).pack(side="left", padx=4)
+        ttk.Spinbox(rr2, from_=100, to=600000, textvariable=self.relax_duration_var, width=10).pack(
+            side="left", padx=4
+        )
 
         btn_row = ttk.Frame(meas)
         btn_row.pack(fill="x", pady=6)
-        self.btn_run = ttk.Button(
-            btn_row, text=">  Run Measurement", command=self._run_measurement
-        )
+        self.btn_run = ttk.Button(btn_row, text=">  Run Measurement", command=self._run_measurement)
         self.btn_run.pack(side="left", expand=True, fill="x", padx=2)
-        self.btn_stop = ttk.Button(
-            btn_row, text="X  Stop", command=self._stop_measurement, state="disabled"
-        )
+        self.btn_stop = ttk.Button(btn_row, text="X  Stop", command=self._stop_measurement, state="disabled")
         self.btn_stop.pack(side="left", padx=2)
 
         self.progress = ttk.Progressbar(meas, mode="determinate")
@@ -436,9 +383,7 @@ class App(ThreadBridge, tk.Tk):
 
         pre = ttk.LabelFrame(parent, text="Presets", padding=6)
         pre.pack(fill="x", padx=4, pady=4)
-        self._preset_listbox = tk.Listbox(
-            pre, height=5, selectmode="browse", activestyle="dotbox"
-        )
+        self._preset_listbox = tk.Listbox(pre, height=5, selectmode="browse", activestyle="dotbox")
         self._preset_listbox.pack(fill="x")
         self._preset_listbox.bind("<Double-Button-1>", lambda _: self._load_preset())
         pb = ttk.Frame(pre)
@@ -455,9 +400,7 @@ class App(ThreadBridge, tk.Tk):
 
         rst = ttk.Frame(parent, padding=4)
         rst.pack(fill="x", padx=4, pady=4)
-        ttk.Button(
-            rst, text="Reset All to Defaults", command=self._reset_defaults
-        ).pack(fill="x")
+        ttk.Button(rst, text="Reset All to Defaults", command=self._reset_defaults).pack(fill="x")
 
         self._on_mode_change()
 
@@ -516,9 +459,7 @@ class App(ThreadBridge, tk.Tk):
                 release_steps=self.release_steps_var.get(),
             )
         except tk.TclError as exc:
-            raise ValueError(
-                f"A setting field is empty or not a number ({exc})."
-            ) from exc
+            raise ValueError(f"A setting field is empty or not a number ({exc}).") from exc
         if validate:
             settings.validate()
 
@@ -617,9 +558,7 @@ class App(ThreadBridge, tk.Tk):
 
             return
         text = ", ".join(str(i) for i in sorted(self.relax_indices))
-        self.lbl_relax_pts.config(
-            text=f"Selected: {text if len(text) <= 30 else text[:27] + '...'}"
-        )
+        self.lbl_relax_pts.config(text=f"Selected: {text if len(text) <= 30 else text[:27] + '...'}")
 
     def _open_relax_dialog(self):
         try:
@@ -705,9 +644,7 @@ class App(ThreadBridge, tk.Tk):
 
     def _choose_project(self):
         remembered = config.load_state().get("project_dir")
-        d = filedialog.askdirectory(
-            title="Select Project Folder", initialdir=remembered or str(Path.home())
-        )
+        d = filedialog.askdirectory(title="Select Project Folder", initialdir=remembered or str(Path.home()))
         if d:
             self.project_dir = Path(d)
             config.update_state(project_dir=d)
@@ -733,9 +670,7 @@ class App(ThreadBridge, tk.Tk):
     def _leds_on(self):
         if self._require_serial():
             directional = self.mask_var.get() & ~self._diffuse_mask
-            self._active_led_mask = directional | (
-                self._active_led_mask & self._diffuse_mask
-            )
+            self._active_led_mask = directional | (self._active_led_mask & self._diffuse_mask)
             self.ctrl.set_power(self.power_var.get())
             self.ctrl.set_leds(self._active_led_mask)
 
@@ -820,10 +755,7 @@ class App(ThreadBridge, tk.Tk):
                 return
             self._show_image(image)
             if self.project_dir:
-                path = (
-                    self.project_dir
-                    / f"snap_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                )
+                path = self.project_dir / f"snap_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                 image.save(path)
                 self.append_log(f"Snap saved: {path.name}")
 
@@ -866,17 +798,13 @@ class App(ThreadBridge, tk.Tk):
         if not self._require_serial():
             return
         if self.project_dir is None:
-            messagebox.showwarning(
-                "No project folder", "Choose a project folder first."
-            )
+            messagebox.showwarning("No project folder", "Choose a project folder first.")
 
             return
         if self._run_active:
             return
         if not self.cam.is_open:
-            messagebox.showwarning(
-                "Camera closed", "Open the camera (or the simulated camera) first."
-            )
+            messagebox.showwarning("Camera closed", "Open the camera (or the simulated camera) first.")
 
             return
         try:
@@ -919,9 +847,7 @@ class App(ThreadBridge, tk.Tk):
             keep_raw=self.keep_raw_var.get(),
             on_image=lambda img: self.post(self._show_image, img),
             on_progress=lambda cur, tot: self.post(self._update_progress, cur, tot),
-            on_done=lambda status, reason: self.post(
-                self._measurement_done, status, reason
-            ),
+            on_done=lambda status, reason: self.post(self._measurement_done, status, reason),
             on_log=lambda msg: self.post(self.append_log, msg),
         )
         try:
@@ -957,9 +883,7 @@ class App(ThreadBridge, tk.Tk):
         if status == "complete":
             self.lbl_progress.config(text="Complete")
         else:
-            self.lbl_progress.config(
-                text=f"Aborted: {reason}" if reason else "Cancelled"
-            )
+            self.lbl_progress.config(text=f"Aborted: {reason}" if reason else "Cancelled")
 
     def _send_raw(self):
         cmd = self.raw_var.get().strip()

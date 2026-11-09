@@ -45,15 +45,12 @@ def detect_mode_from_frames(frames_data: dict) -> tuple[str, dict]:
 
 @dataclass(frozen=True)
 class PsOptions:
-
     ps_set: str = "A"  # "A" or "B" (polarised set, if captured)
     gamma: float = 1.0  # 1.0 = camera bytes are linear (the rig's convention)
     ambient_subtract: bool = False
     use_diffuse_albedo: bool = False
     bilateral_normals: bool = False  # smooth the 8-bit normal preview only
-    estimate_gains: bool = (
-        True  # estimate LED radiances unless the configuration has them
-    )
+    estimate_gains: bool = True  # estimate LED radiances unless the configuration has them
     roi: tuple[int, int, int, int] | None = None  # white reference region (x, y, w, h)
 
 
@@ -67,7 +64,6 @@ class PsResult:
 
 
 class RunData:
-
     def __init__(self, run_dir: Path, led_config_path: Path | None = None):
         self.run_dir = Path(run_dir)
         frames_path = self.run_dir / "frames.json"
@@ -75,17 +71,11 @@ class RunData:
             raise FileNotFoundError(f"{frames_path} not found - not a run folder")
         self.frames_data = json.loads(frames_path.read_text(encoding="utf-8"))
         session_path = self.run_dir / "session.json"
-        self.session = (
-            json.loads(session_path.read_text(encoding="utf-8"))
-            if session_path.is_file()
-            else {}
-        )
+        self.session = json.loads(session_path.read_text(encoding="utf-8")) if session_path.is_file() else {}
         self.mode, self.caps = detect_mode_from_frames(self.frames_data)
         self.light = resolve_light(self.session, led_config_path)
         camera = self.session.get("camera") or {}
-        self.exposure_ms = camera.get(
-            "exposure_ms_actual", self.session.get("cam_exposure_ms")
-        )
+        self.exposure_ms = camera.get("exposure_ms_actual", self.session.get("cam_exposure_ms"))
         self.color_stamp = self.session.get("color_calibration")
         self.already_corrected = corrected_models(self.color_stamp)
         self.color_path: Path | None = None
@@ -120,31 +110,19 @@ class RunData:
 
         return cv2.imread(str(path), cv2.IMREAD_COLOR)
 
-    def calibrated(
-        self, image_bgr: np.ndarray | None, model_name: str
-    ) -> np.ndarray | None:
-        if (
-            image_bgr is None
-            or self.color_bundle is None
-            or model_name in self.already_corrected
-        ):
+    def calibrated(self, image_bgr: np.ndarray | None, model_name: str) -> np.ndarray | None:
+        if image_bgr is None or self.color_bundle is None or model_name in self.already_corrected:
             return image_bgr
         if self.exposure_ms is None:
-            raise RuntimeError(
-                "color calibration requires cam_exposure_ms in session.json"
-            )
+            raise RuntimeError("color calibration requires cam_exposure_ms in session.json")
         model = getattr(self.color_bundle, model_name)
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         corrected = apply_model(rgb, model, exposure_ms=float(self.exposure_ms))
 
-        return cv2.cvtColor(
-            (corrected * 255.0 + 0.5).astype(np.uint8), cv2.COLOR_RGB2BGR
-        )
+        return cv2.cvtColor((corrected * 255.0 + 0.5).astype(np.uint8), cv2.COLOR_RGB2BGR)
 
 
-def resolve_light(
-    session: dict, led_config_path: Path | None = None
-) -> photometric.LightConfig:
+def resolve_light(session: dict, led_config_path: Path | None = None) -> photometric.LightConfig:
     if led_config_path is None:
         user_file = config.config_dir() / config.LED_CONFIG_FILE
         led_config_path = user_file if user_file.is_file() else None
@@ -169,14 +147,10 @@ def preprocess_gray(img_bgr: np.ndarray, options: PsOptions) -> np.ndarray:
 
 def load_ps_images(run: RunData, idx: int, options: PsOptions) -> list[np.ndarray]:
     if run.mode != "white":
-        raise RuntimeError(
-            f"photometric stereo needs image_ps_1..3 images; this run is {run.mode!r}"
-        )
+        raise RuntimeError(f"photometric stereo needs image_ps_1..3 images; this run is {run.mode!r}")
     keys = run.ps_keys(options.ps_set)
     if len(keys) != 3:
-        raise RuntimeError(
-            f"frame {idx}: need exactly 3 PS images, the run has {len(keys)}"
-        )
+        raise RuntimeError(f"frame {idx}: need exactly 3 PS images, the run has {len(keys)}")
     images = []
     for key in keys:
         image = run.calibrated(run.read_bgr(idx, key), "point_light")
@@ -201,9 +175,7 @@ def solve_gray(run: RunData, idx: int, options: PsOptions, gains=None):
 
 
 def process_frame(run: RunData, idx: int, options: PsOptions, gains=None) -> PsResult:
-    _ps_gray, albedo, normals, support, used, images = solve_gray(
-        run, idx, options, gains
-    )
+    _ps_gray, albedo, normals, support, used, images = solve_gray(run, idx, options, gains)
     diffuse = run.calibrated(run.read_bgr(idx, "image_diffuse"), "diffuse")
     if diffuse is not None:
         color = cv2.cvtColor(diffuse, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
@@ -211,10 +183,7 @@ def process_frame(run: RunData, idx: int, options: PsOptions, gains=None) -> PsR
             albedo = preprocess_gray(diffuse, options)
     else:
         color = np.mean(
-            [
-                cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-                for img in images
-            ],
+            [cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0 for img in images],
             axis=0,
         )
     albedo_rgb = photometric.color_albedo(albedo, color)
@@ -225,9 +194,7 @@ def process_frame(run: RunData, idx: int, options: PsOptions, gains=None) -> PsR
 
 
 def albedo_preview_u8(albedo_rgb: np.ndarray) -> np.ndarray:
-    return np.rint(np.clip(albedo_rgb / ALBEDO_VISUALIZATION_MAX, 0, 1) * 255).astype(
-        np.uint8
-    )
+    return np.rint(np.clip(albedo_rgb / ALBEDO_VISUALIZATION_MAX, 0, 1) * 255).astype(np.uint8)
 
 
 def normals_preview_u8(normals: np.ndarray, bilateral: bool = False) -> np.ndarray:

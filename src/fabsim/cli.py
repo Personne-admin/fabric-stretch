@@ -40,9 +40,7 @@ def _usage() -> str:
 
 #: Modules whose absence (or a missing shared library behind them) means "optional GUI dependency".
 _OPTIONAL_MODULES = ("tkinter", "_tkinter", "serial", "pyueye")
-_OPTIONAL_MESSAGE = re.compile(
-    r"tkinter|_tkinter|libtk|libtcl|\bserial\b|pyueye", re.IGNORECASE
-)
+_OPTIONAL_MESSAGE = re.compile(r"tkinter|_tkinter|libtk|libtcl|\bserial\b|pyueye", re.IGNORECASE)
 
 
 def _is_optional_dependency(exc: ImportError) -> bool:
