@@ -8,6 +8,10 @@ and normal maps; the viewer lets you stretch, press and relight the result.
 
 ![The same fabric under two light directions](docs/images/press_relight_pair.png)
 
+[Download Windows and Linux builds](https://github.com/Personne-admin/fabric-stretch/releases/latest).
+Installers and portable archives include Python, the viewer, rig app and demo.
+See [installation and releases](docs/releases.md).
+
 ## Try the demo
 
 ```sh

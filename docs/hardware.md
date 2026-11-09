@@ -187,6 +187,9 @@ no sign), `led_mask`, `led_power`, `settle_ms`, `cam_exposure_ms`, `speed_mult`,
 
 ## Windows build
 
+[Releases](releases.md) include native Windows builds of the viewer, CLI and rig app.
+CI builds and tests these on Windows. The Wine helper below is an alternative for local builds.
+
 `scripts/build_windows.sh` builds a single `dist/fabsim-rig.exe` from Linux with Wine, a Windows
 Python and PyInstaller. Usage: `scripts/build_windows.sh [--run]`; `--run` starts the exe under Wine
 afterwards.

@@ -36,11 +36,12 @@ redistributing it.
 
    fabric-stretch depends on open source libraries (Rust crates such as egui/eframe,
    wgpu, serde, and Python packages numpy, opencv-python-headless, Pillow and pyserial).
-   Cargo and pip install them under their own licences. If you distribute a binary (for example the Windows build of the rig app or of the viewer), you
-   are responsible for including the notices that those licences require: `cargo
-   about`/`cargo license` and `pip-licenses` list them.
-   Hardware SDKs (IDS uEye / pyueye for the camera) are vendor software and are
-   not distributed here.
+   Cargo and pip install them under their own licences. Release binaries include their
+   notices in licenses/: rust.html for Rust crates, python/ for Python, Tcl/Tk and
+   bundled Python packages. The PyInstaller bootloader uses its upstream licence
+   exception for distributing frozen applications.
+   The pyueye Python bindings are included under their upstream terms. The IDS uEye
+   driver and camera SDK libraries must be installed separately and are not bundled.
 
 4. Measurement data
 

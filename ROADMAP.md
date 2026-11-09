@@ -32,5 +32,5 @@
   by downloading it; the current hash came from Hugging Face metadata. Compare new tracks
   with archived results.
 - Support batch systems such as Apptainer on HPC.
-- Build the viewer for Windows.
-- Test the rig build under Wine and Windows. CI does not cover hardware, Windows or GPU servers.
+- Test the viewer on physical Windows and Linux machines. CI checks native builds and installers,
+  but does not cover real cameras, controllers or GPU servers.

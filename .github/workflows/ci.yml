@@ -2,19 +2,26 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +44,7 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: System packages
@@ -73,3 +81,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
           shellcheck -x server/bootstrap.sh server/fabsim-track server/lib/*.sh server/tests/*.sh \
             server/tests/fakebin/* scripts/*.sh
+
+  binaries:
+    needs: [python, rust, shellcheck]
+    uses: ./.github/workflows/build.yml
+    with:
+      release_tag: ${{ inputs.release_tag || '' }}
