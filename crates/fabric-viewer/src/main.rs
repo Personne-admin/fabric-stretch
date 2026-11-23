@@ -1,5 +1,6 @@
 //! Fabric Stretch Viewer executable.
 
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 use eframe::egui_wgpu::{wgpu, WgpuConfiguration, WgpuSetup};
 use std::sync::Arc;
 

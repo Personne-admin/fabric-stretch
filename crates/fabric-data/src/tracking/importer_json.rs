@@ -7,7 +7,8 @@
 //! Frame IDs must be non-negative integers (integral floats accepted), matching `frames.json`.
 //! Duplicate frames keep the last occurrence. Points may also be an ID-keyed object.
 //! Accept `id`/`track_id`/`label`, optional `confidence`/`conf`, and ignore unknown fields
-//! including format/version. Skip invalid frames or points with warnings.
+//! including format/version. Retain the optional provenance reference frame. Skip invalid
+//! frames or points with warnings.
 
 use std::fmt;
 use std::io::BufRead;
@@ -138,8 +139,12 @@ impl TrackingImporter for JsonTrackingImporter {
             frames.push(TrackingFrame::new(frame_id, entries));
         }
 
+        let source_reference = root
+            .get("provenance")
+            .and_then(|provenance| provenance.get("reference_frame"))
+            .and_then(frame_id_of);
         Ok(TrackingImport {
-            sequence: TrackingSequence::new(frames),
+            sequence: TrackingSequence::new(frames).with_source_reference(source_reference),
             warnings,
         })
     }
@@ -301,7 +306,7 @@ mod tests {
 
     #[test]
     fn adapter_output_with_provenance_loads() {
-        // Adapter output includes provenance and extra fields; ignore them on import.
+        // The adapter reference identifies the frame where the grid was initialized.
         let json = r#"{
             "format": "fabsim-tracks",
             "version": 1,
@@ -331,6 +336,13 @@ mod tests {
         }"#;
         let result = import(json).unwrap();
         assert_eq!(result.sequence.len(), 2);
+        assert_eq!(
+            result
+                .sequence
+                .source_reference()
+                .map(TrackingFrame::frame_id),
+            Some(FrameId(0))
+        );
         let f0 = result.sequence.get_frame(&FrameId(0)).unwrap();
         assert_eq!(f0.len(), 2);
         assert_eq!(

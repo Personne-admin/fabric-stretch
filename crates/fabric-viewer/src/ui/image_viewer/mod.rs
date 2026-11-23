@@ -5,6 +5,7 @@
 mod advanced;
 mod canvas;
 mod export;
+mod grid_preview;
 pub(crate) mod overlay;
 mod relight;
 mod replay;
@@ -14,11 +15,12 @@ mod tracking_panel;
 mod tests;
 
 use egui::{Color32, RichText, Vec2};
-use fabric_data::tracking::FrameId;
+use fabric_data::tracking::{registration::RegistrationTransform, FrameId};
 use fabric_data::{Frame, Run};
 
-use self::canvas::{canvas, CanvasInput, PaintImage};
+use self::canvas::{canvas, PaintImage, Pane};
 use self::export::export_row;
+use self::grid_preview::{Grid, PreviewCache};
 use self::overlay::frame_render_inputs;
 use self::relight::{RelightEntry, RelightSources, RelightState};
 use self::replay::{replay_row, ReplayTarget};
@@ -29,9 +31,12 @@ use crate::lighting::light_pad;
 use crate::playback::PlaybackState;
 use crate::project::{resolve_frame_ref, ProjectSlot};
 use crate::selection::{FrameRef, FrameSelection};
-use crate::settings::{ComparisonMode, FitMode, Interpolation, ViewerSettings};
+use crate::settings::{
+    ComparisonMode, FitMode, ImagePaneSettings, ImageStabilization, Interpolation, ViewerSettings,
+};
 use crate::tracked::TrackingSession;
 use crate::ui::style;
+use std::sync::Arc;
 
 /// Frames decoded ahead of the current one while playing.
 const PREFETCH_AHEAD: usize = 3;
@@ -58,9 +63,9 @@ pub struct ImageViewerState {
     /// Zoom; `None` means Fit.
     pub scale: Option<f32>,
     pub pan: egui::Vec2,
-    pub wipe_pos: f32,
-    pub wipe_dragging: bool,
-    pub secondary_role: Option<String>,
+    wipe_dividers: Vec<f32>,
+    wipe_dragging: Option<usize>,
+    previews: PreviewCache,
     pub synced_fit: Option<FitMode>,
     /// One-shot: re-apply the fit mode even if it did not change.
     pub fit_force: bool,
@@ -79,9 +84,9 @@ impl Default for ImageViewerState {
         ImageViewerState {
             scale: None,
             pan: egui::Vec2::ZERO,
-            wipe_pos: 0.5,
-            wipe_dragging: false,
-            secondary_role: None,
+            wipe_dividers: Vec::new(),
+            wipe_dragging: None,
+            previews: PreviewCache::default(),
             synced_fit: None,
             fit_force: false,
             last_image: None,
@@ -163,6 +168,7 @@ pub fn image_viewer_tab(ui: &mut egui::Ui, state: &mut ImageViewerState, cx: &mu
     let texture_options = settings.images.interpolation.texture_options();
     image_cache.set_texture_options(texture_options);
     state.poll_relight(ui.ctx(), texture_options);
+    state.previews.poll(ui.ctx(), texture_options);
 
     // Reapply fit on an explicit click, even when the mode did not change.
     if state.fit_force || state.synced_fit != Some(settings.images.fit) {
@@ -238,23 +244,6 @@ pub fn image_viewer_tab(ui: &mut egui::Ui, state: &mut ImageViewerState, cx: &mu
         .as_deref()
         .is_none_or(|p| p != primary_role);
 
-    // Replace stale comparison roles when the active frame changes.
-    if state
-        .secondary_role
-        .as_deref()
-        .is_none_or(|r| r == primary_role || !roles.iter().any(|(role, _)| role == r))
-    {
-        state.secondary_role = roles
-            .iter()
-            .map(|(r, _)| r.clone())
-            .find(|r| r != primary_role);
-    }
-    let comparison = if state.secondary_role.is_some() {
-        settings.images.comparison
-    } else {
-        ComparisonMode::Single
-    };
-
     // Relight from PS albedo/normals, independent of the displayed role.
     let find_role = |wanted: &str| {
         roles
@@ -318,24 +307,6 @@ pub fn image_viewer_tab(ui: &mut egui::Ui, state: &mut ImageViewerState, cx: &mu
         ui.ctx().request_repaint();
     }
     let use_relight = relight_state.shows_relit(state.relight.is_some());
-
-    let mut secondary: Option<PaintImage> = None;
-    if comparison != ComparisonMode::Single {
-        if let Some((_, filename)) = state
-            .secondary_role
-            .as_ref()
-            .and_then(|role| roles.iter().find(|(r, _)| r == role))
-        {
-            let path = images_dir.join(filename);
-            image_cache.request_and_repaint(ui.ctx(), &path);
-            if let (Some(tex), Some(size)) = (image_cache.texture(&path), image_cache.size(&path)) {
-                secondary = Some(PaintImage {
-                    texture: tex.id(),
-                    size,
-                });
-            }
-        }
-    }
 
     // What the canvas shows: the relit image, the decoded primary, the
     // previous frame while this one decodes, or a status message.
@@ -425,21 +396,166 @@ pub fn image_viewer_tab(ui: &mut egui::Ui, state: &mut ImageViewerState, cx: &mu
     );
     export_row(ui, state, tracking, cx.playback.fps, settings, slot, ridx);
 
-    // Read switches after drawing controls so clicks apply this frame.
-    let (_, overlay_data) = frame_render_inputs(tracking, run_key, frame_id);
+    // Read tracking controls after drawing them so changes apply in this frame.
+    let (tracking_transform, mut overlay) = frame_render_inputs(tracking, run_key, frame_id);
+    let tracking_run = tracking.run_state(run_key);
+    let comparison = settings.images.comparison;
+    let configs = if comparison == ComparisonMode::Single {
+        &[][..]
+    } else {
+        settings.images.comparison_panes.as_slice()
+    };
+    let primary_config = &settings.images.primary_pane;
+    let all_configs = std::iter::once(primary_config).chain(configs);
+    let wants_grid = all_configs
+        .clone()
+        .any(|c| c.stabilization == ImageStabilization::Grid);
+    let grid = wants_grid
+        .then(|| tracking_run.and_then(|r| Grid::for_frame(r, frame_id)))
+        .flatten()
+        .map(Arc::new);
+    let wants_top = all_configs
+        .clone()
+        .any(|c| c.stabilization == ImageStabilization::Top);
+    let top = wants_top
+        .then(|| tracking_run.and_then(|r| tracking.stabilization_for(r, frame_id)))
+        .flatten()
+        .map(|s| s.transform);
+    state.previews.set_active_count(configs.len() + 1);
 
-    let (hovered_track, clicked_track) = canvas(
-        ui,
-        state,
-        CanvasInput {
-            primary: displayed.as_ref(),
-            message,
-            stale,
-            secondary: secondary.as_ref(),
-            comparison,
-            overlay: overlay_data,
-        },
-    );
+    let mut panes = Vec::with_capacity(configs.len() + 1);
+    for (i, config) in all_configs.enumerate() {
+        let primary = i == 0;
+        let comparison_role = || {
+            config
+                .role
+                .as_ref()
+                .and_then(|choice| roles.iter().find(|(role, _)| role == choice))
+                .or_else(|| {
+                    config
+                        .role
+                        .is_none()
+                        .then(|| {
+                            roles
+                                .iter()
+                                .find(|(role, _)| role != primary_role)
+                                .or_else(|| roles.first())
+                        })
+                        .flatten()
+                })
+        };
+        let (role, image, decoded, note) = if primary {
+            let decoded = if use_relight {
+                state.relight.as_ref().and_then(|entry| {
+                    let wanted = state.relight_requested.as_ref()?;
+                    (entry.signature.albedo_key == wanted.albedo_key
+                        && entry.signature.normal_key == wanted.normal_key)
+                        .then(|| entry.image.clone())
+                })
+            } else {
+                image_cache.decoded(&primary_path)
+            };
+            (primary_role, displayed.clone(), decoded, message.clone())
+        } else if let Some((role, filename)) = comparison_role() {
+            let path = images_dir.join(filename);
+            let status = image_cache.request_and_repaint(ui.ctx(), &path);
+            let image =
+                image_cache
+                    .texture(&path)
+                    .zip(image_cache.size(&path))
+                    .map(|(tex, size)| PaintImage {
+                        texture: tex.id(),
+                        size,
+                    });
+            let note = match status {
+                ImageStatus::Error(error) => Some((error, true)),
+                _ if image.is_none() => Some(("Loading image…".into(), false)),
+                _ => None,
+            };
+            (role.as_str(), image, image_cache.decoded(&path), note)
+        } else {
+            (
+                config.role.as_deref().unwrap_or("Image"),
+                None,
+                None,
+                Some(("Role unavailable for this frame".into(), true)),
+            )
+        };
+        let mut note = note;
+        let mut image = image;
+        let mut transform = match config.stabilization {
+            ImageStabilization::Tracking => tracking_transform,
+            ImageStabilization::Raw | ImageStabilization::Grid => RegistrationTransform::IDENTITY,
+            ImageStabilization::Top => top.unwrap_or(RegistrationTransform::IDENTITY),
+        };
+        if config.stabilization == ImageStabilization::Top && top.is_none() && image.is_some() {
+            note = Some(("Top tracking anchors unavailable".into(), true));
+        }
+        let grid_mode = config.stabilization == ImageStabilization::Grid;
+        let blend = config.tile_check && config.blend_edges;
+        if grid_mode && grid.is_none() {
+            image = None;
+            note = Some(("A complete tracked grid is required".into(), true));
+        } else if (grid_mode || blend) && image.is_some() {
+            let ready = decoded.and_then(|decoded| {
+                state.previews.request(
+                    decoded,
+                    if grid_mode { grid.clone() } else { None },
+                    blend,
+                    ui.ctx(),
+                )
+            });
+            image = ready.map(|(texture, size)| PaintImage { texture, size });
+            if image.is_none() && note.is_none() {
+                note = Some(("Preparing preview…".into(), false));
+            }
+        }
+        if primary {
+            if stale || config.tile_check || (grid_mode && !tracking.stabilize.show_points) {
+                overlay = None;
+            } else if let Some(overlay) = &mut overlay {
+                overlay.transform = transform;
+                if grid_mode {
+                    overlay.tracks.retain_mut(|track| {
+                        let Some([x, y]) = grid
+                            .as_ref()
+                            .and_then(|grid| grid.rectified_point(&track.id))
+                        else {
+                            return false;
+                        };
+                        track.current.x = x;
+                        track.current.y = y;
+                        true
+                    });
+                }
+            }
+        }
+        if primary && stale {
+            transform = RegistrationTransform::IDENTITY;
+        }
+        let role = if primary && use_relight {
+            "Relit"
+        } else {
+            role
+        };
+        let title = format!(
+            "{role} · {}{}",
+            config.stabilization.label(),
+            if config.tile_check {
+                " · Tile check"
+            } else {
+                ""
+            }
+        );
+        panes.push(Pane {
+            image,
+            title,
+            message: note,
+            transform,
+            tiled: config.tile_check,
+        });
+    }
+    let (hovered_track, clicked_track) = canvas(ui, state, &panes, comparison, overlay);
     tracking.hovered_track = hovered_track;
 
     // Ctrl/Shift toggles tracks in the candidate reference set.
@@ -523,29 +639,30 @@ fn controls_row(
             }
         }
 
-        // Keep comparison controls available in Single mode.
-        if roles.len() >= 2 {
-            ui.separator();
-            ui.label("Compare:");
-            for mode in ComparisonMode::ALL {
-                ui.radio_value(&mut settings.images.comparison, mode, mode.label());
-            }
-            if settings.images.comparison != ComparisonMode::Single {
-                ui.label("2nd:");
-                egui::ComboBox::from_id_salt("secondary_role")
-                    .selected_text(state.secondary_role.clone().unwrap_or_else(|| "-".into()))
-                    .width(ui.available_width().min(110.0))
-                    .show_ui(ui, |ui| {
-                        for (role, _) in roles.iter().filter(|(role, _)| role != primary_role) {
-                            let selected = state.secondary_role.as_deref() == Some(role.as_str());
-                            if ui.selectable_label(selected, role).clicked() {
-                                state.secondary_role = Some(role.clone());
-                            }
-                        }
-                    });
-            }
+        ui.separator();
+        ui.label("Compare:");
+        for mode in ComparisonMode::ALL {
+            ui.radio_value(&mut settings.images.comparison, mode, mode.label());
         }
-
+        egui::ComboBox::from_id_salt("primary_stabilization")
+            .selected_text(settings.images.primary_pane.stabilization.label())
+            .show_ui(ui, |ui| {
+                for mode in ImageStabilization::ALL {
+                    ui.selectable_value(
+                        &mut settings.images.primary_pane.stabilization,
+                        mode,
+                        mode.label(),
+                    );
+                }
+            });
+        egui::containers::menu::MenuButton::new("View settings")
+            .config(
+                egui::containers::menu::MenuConfig::default()
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            )
+            .ui(ui, |ui| {
+                tile_controls(ui, &mut settings.images.primary_pane);
+            });
         // Disable relighting without both PS layers.
         ui.separator();
         let relight = &mut settings.images.relight;
@@ -564,6 +681,73 @@ fn controls_row(
             light_pad(ui, &mut relight.light);
         }
     });
+    if settings.images.comparison != ComparisonMode::Single {
+        egui::CollapsingHeader::new("Comparison views")
+            .default_open(true)
+            .show(ui, |ui| {
+                let panes = &mut settings.images.comparison_panes;
+                if ui.button("+ View").clicked() {
+                    panes.push(ImagePaneSettings::default());
+                }
+                let mut remove = None;
+                egui::ScrollArea::vertical()
+                    .max_height(160.0)
+                    .show(ui, |ui| {
+                        for (i, pane) in panes.iter_mut().enumerate() {
+                            ui.push_id(i, |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(format!("View {}", i + 2));
+                                    egui::ComboBox::from_id_salt("role")
+                                        .selected_text(
+                                            pane.role.as_deref().unwrap_or("Alternate role"),
+                                        )
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(
+                                                &mut pane.role,
+                                                None,
+                                                "Alternate role",
+                                            );
+                                            for (role, _) in roles {
+                                                ui.selectable_value(
+                                                    &mut pane.role,
+                                                    Some(role.clone()),
+                                                    role,
+                                                );
+                                            }
+                                        });
+                                    egui::ComboBox::from_id_salt("stabilization")
+                                        .selected_text(pane.stabilization.label())
+                                        .show_ui(ui, |ui| {
+                                            for mode in ImageStabilization::ALL {
+                                                ui.selectable_value(
+                                                    &mut pane.stabilization,
+                                                    mode,
+                                                    mode.label(),
+                                                );
+                                            }
+                                        });
+                                    tile_controls(ui, pane);
+                                    if ui.small_button("Remove").clicked() {
+                                        remove = Some(i);
+                                    }
+                                })
+                            });
+                        }
+                    });
+                if let Some(i) = remove {
+                    panes.remove(i);
+                }
+            });
+    }
+}
+
+fn tile_controls(ui: &mut egui::Ui, pane: &mut ImagePaneSettings) {
+    ui.checkbox(&mut pane.tile_check, "Tile check")
+        .on_hover_text("Repeat the image in a 3 × 3 grid to inspect its seams");
+    if pane.tile_check {
+        ui.checkbox(&mut pane.blend_edges, "Blend edges")
+            .on_hover_text("Crossfade opposite edges before repeating the image");
+    }
 }
 
 /// Facts about the displayed frame for the metadata line.

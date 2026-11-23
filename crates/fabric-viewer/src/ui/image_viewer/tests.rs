@@ -85,6 +85,28 @@ fn single_mode_uses_full_canvas() {
 }
 
 #[test]
+fn comparison_layout_accepts_more_than_two_views() {
+    use super::canvas::pane_rects;
+    let viewport = rect(0.0, 0.0, 900.0, 480.0);
+    let panes = pane_rects(ComparisonMode::SplitWipe, viewport, 4, &[0.1, 0.35, 0.8]);
+    assert_eq!(panes.len(), 4);
+    for (pane, (left, right)) in
+        panes
+            .iter()
+            .zip([(0.0, 90.0), (90.0, 315.0), (315.0, 720.0), (720.0, 900.0)])
+    {
+        assert_eq!(pane.0, viewport);
+        assert!((pane.1.min.x - left).abs() < 1e-4);
+        assert!((pane.1.max.x - right).abs() < 1e-4);
+    }
+    let panes = pane_rects(ComparisonMode::SideBySide, viewport, 7, &[]);
+    assert_eq!(panes.len(), 7);
+    assert!(panes[2].0.min.x > panes[1].0.min.x);
+    assert!(panes[3].0.min.y > panes[2].0.min.y);
+    assert_eq!(panes[6].0.max.y, viewport.max.y);
+}
+
+#[test]
 fn relight_state_notes_are_human_readable() {
     assert!(RelightState::NoNormal.note().is_some());
     assert!(RelightState::NoAlbedo("no PS".into())
@@ -665,7 +687,7 @@ fn relit_entry(ctx: &egui::Context, signature: RelightSignature) -> relight::Rel
     relight::RelightEntry {
         signature,
         texture: ctx.load_texture("test", egui::ColorImage::example(), options),
-        image,
+        image: Arc::new(image),
         options,
     }
 }
@@ -859,7 +881,82 @@ fn compare_controls_stay_reachable_in_single_mode() {
             },
         );
     });
-    assert!(!text.contains("Compare:"));
+    // One role can still be compared with different stabilization or tile settings.
+    assert!(text.contains("Compare:"));
+}
+
+#[test]
+fn comparison_role_and_stabilization_can_be_selected_with_pointer_clicks() {
+    fn find_text(output: &egui::FullOutput, label: &str) -> Pos2 {
+        fn find(shape: &egui::Shape, label: &str) -> Option<Pos2> {
+            match shape {
+                egui::Shape::Text(text) if text.galley.text() == label => {
+                    Some(text.pos + text.galley.size() * 0.5)
+                }
+                egui::Shape::Vec(shapes) => {
+                    shapes.iter().rev().find_map(|shape| find(shape, label))
+                }
+                _ => None,
+            }
+        }
+        output
+            .shapes
+            .iter()
+            .rev()
+            .find_map(|shape| find(&shape.shape, label))
+            .unwrap_or_else(|| panic!("missing {label:?} in {}", painted_text(output)))
+    }
+
+    let ctx = egui::Context::default();
+    let mut settings = ViewerSettings::default();
+    settings.images.comparison = ComparisonMode::SplitWipe;
+    let mut state = ImageViewerState::default();
+    let roles = [
+        ("diffuse".into(), "d.png".into()),
+        ("albedo".into(), "a.png".into()),
+    ];
+    let mut frame = |events| {
+        let input = egui::RawInput {
+            screen_rect: Some(rect(0.0, 0.0, 1200.0, 900.0)),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            controls_row(
+                ui,
+                &mut settings,
+                &mut state,
+                ControlsModel {
+                    roles: &roles,
+                    primary_role: "diffuse",
+                    can_relight: false,
+                    run_has_ps: false,
+                },
+            )
+        })
+    };
+    let _ = frame(vec![]);
+    let mut output = frame(vec![]);
+    for label in [
+        "Alternate role",
+        "albedo",
+        "Follow tracking",
+        "Stabilize to grid",
+    ] {
+        let pos = find_text(&output, label);
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let _ = frame(vec![egui::Event::PointerMoved(pos), button(true)]);
+        let _ = frame(vec![button(false)]);
+        output = frame(vec![]);
+    }
+    let pane = &settings.images.comparison_panes[0];
+    assert_eq!(pane.role.as_deref(), Some("albedo"));
+    assert_eq!(pane.stabilization, ImageStabilization::Grid);
 }
 
 #[test]
@@ -1023,6 +1120,35 @@ fn a_run_without_ps_layers_is_not_relit_and_keeps_showing_the_photo() {
         "the setting is not cleared"
     );
     std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn three_split_configurations_prepare_independent_previews_on_the_demo_grid() {
+    let root = crate::material_package::test_support::demo_project();
+    let project = fabric_data::Project::discover(&root).unwrap();
+    let slot = ProjectSlot::new("demo".into(), project);
+    let mut settings = ViewerSettings::default();
+    settings.images.comparison = ComparisonMode::SplitWipe;
+    settings.images.primary_pane.stabilization = ImageStabilization::Grid;
+    settings.images.comparison_panes = vec![
+        ImagePaneSettings {
+            role: Some("diffuse".into()),
+            stabilization: ImageStabilization::Raw,
+            tile_check: true,
+            ..Default::default()
+        },
+        ImagePaneSettings {
+            role: Some("diffuse".into()),
+            stabilization: ImageStabilization::Grid,
+            tile_check: true,
+            ..Default::default()
+        },
+    ];
+    let mut state = ImageViewerState::default();
+    drive_tab(&[slot], &mut settings, &mut state, |s| {
+        s.previews.ready_count() == 3
+    });
+    assert_eq!(state.wipe_dividers, vec![1.0 / 3.0, 2.0 / 3.0]);
 }
 
 #[test]

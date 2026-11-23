@@ -64,7 +64,7 @@ impl RelightState {
 /// The relit image and the texture made from it.
 pub struct RelightEntry {
     pub signature: RelightSignature,
-    pub image: image::RgbaImage,
+    pub image: std::sync::Arc<image::RgbaImage>,
     pub texture: egui::TextureHandle,
     pub options: egui::TextureOptions,
 }
@@ -101,7 +101,7 @@ impl ImageViewerState {
                 let texture = upload(ctx, &result.image, options);
                 self.relight = Some(RelightEntry {
                     signature: result.signature,
-                    image: result.image,
+                    image: std::sync::Arc::new(result.image),
                     texture,
                     options,
                 });

@@ -119,6 +119,48 @@ impl Default for PlotSettings {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ImageStabilization {
+    #[default]
+    Tracking,
+    Raw,
+    Top,
+    Grid,
+}
+
+impl ImageStabilization {
+    pub const ALL: [Self; 4] = [Self::Tracking, Self::Raw, Self::Top, Self::Grid];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Tracking => "Follow tracking",
+            Self::Raw => "Raw",
+            Self::Top => "Stabilize to top",
+            Self::Grid => "Stabilize to grid",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImagePaneSettings {
+    pub role: Option<String>,
+    pub stabilization: ImageStabilization,
+    pub tile_check: bool,
+    pub blend_edges: bool,
+}
+
+impl Default for ImagePaneSettings {
+    fn default() -> Self {
+        Self {
+            role: None,
+            stabilization: ImageStabilization::Tracking,
+            tile_check: false,
+            blend_edges: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ImageSettings {
@@ -131,6 +173,8 @@ pub struct ImageSettings {
     /// viewer only follows the clicked/scrubbed selection.
     pub hover_follow: bool,
     pub comparison: ComparisonMode,
+    pub primary_pane: ImagePaneSettings,
+    pub comparison_panes: Vec<ImagePaneSettings>,
     pub relight: RelightSettings,
 }
 
@@ -142,6 +186,8 @@ impl Default for ImageSettings {
             interpolation: Interpolation::Linear,
             hover_follow: true,
             comparison: ComparisonMode::Single,
+            primary_pane: ImagePaneSettings::default(),
+            comparison_panes: vec![ImagePaneSettings::default()],
             relight: RelightSettings::default(),
         }
     }

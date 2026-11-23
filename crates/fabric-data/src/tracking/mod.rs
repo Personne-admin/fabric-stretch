@@ -339,6 +339,8 @@ impl TrackingFrame {
 #[derive(Debug, Clone)]
 pub struct TrackingSequence {
     frames: Vec<TrackingFrame>,
+    /// The frame whose grid was initialized by the tracker, when supplied by the importer.
+    source_reference: Option<FrameId>,
     frame_index: HashMap<FrameId, usize>,
     track_order: Vec<TrackId>,
 }
@@ -367,9 +369,19 @@ impl TrackingSequence {
         }
         TrackingSequence {
             frames: out,
+            source_reference: None,
             frame_index: index,
             track_order,
         }
+    }
+
+    pub fn source_reference(&self) -> Option<&TrackingFrame> {
+        self.get_frame(&self.source_reference?)
+    }
+
+    fn with_source_reference(mut self, reference: Option<FrameId>) -> Self {
+        self.source_reference = reference;
+        self
     }
 
     pub fn frames(&self) -> &[TrackingFrame] {

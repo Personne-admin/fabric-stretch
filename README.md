@@ -23,6 +23,12 @@ cargo run --release -p fabric-viewer -- examples/demo
 Open **View > Press View**, enable **Relight**, and drag the light pad.
 The [demo](examples/demo/README.md) is a small extract of a real measurement.
 
+In **Image Viewer**, choose **Side-by-side** or **Split / wipe**, then add configurations
+under **Comparison views**. Each view can use a different image role and stabilization mode.
+**Stabilize to grid** straightens the tracked grid with the packager's bilinear cell mapping.
+**Tile check** repeats the preview in a 3 × 3 grid, with optional **Blend edges** to soften the
+wrap seams. Drag the split dividers to change which part of each configuration is visible.
+
 To render a PNG without a window:
 
 ```sh

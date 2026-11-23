@@ -17,46 +17,79 @@ pub(super) struct PaintImage {
     pub size: (u32, u32),
 }
 
-/// What the canvas draws for one frame.
-pub(super) struct CanvasInput<'a> {
-    /// The image to paint; `None` shows `message` instead.
-    pub primary: Option<&'a PaintImage>,
-    /// Status text: the reason there is no image, or a "loading" note over a
-    /// stale one.
+pub(super) struct Pane {
+    pub image: Option<PaintImage>,
+    pub title: String,
     pub message: Option<(String, bool)>,
-    /// The painted image belongs to an earlier frame (the new one is still
-    /// decoding); the overlay is not drawn over it.
-    pub stale: bool,
-    pub secondary: Option<&'a PaintImage>,
-    pub comparison: ComparisonMode,
-    pub overlay: Option<OverlayPaintData>,
+    pub transform: RegistrationTransform,
+    pub tiled: bool,
 }
 
-/// Pure layout helper: the drawing rects for primary and secondary under each
-/// comparison mode. In Single mode both rects are the full canvas.
+impl Pane {
+    fn image_for_layout(&self) -> Option<PaintImage> {
+        let mut image = self.image.clone()?;
+        if self.tiled {
+            image.size = (image.size.0 * 3, image.size.1 * 3);
+        }
+        Some(image)
+    }
+}
+
+/// The fit viewport and visible clip for each configuration.
+pub(super) fn pane_rects(
+    mode: ComparisonMode,
+    rect: Rect,
+    count: usize,
+    dividers: &[f32],
+) -> Vec<(Rect, Rect)> {
+    if count <= 1 || mode == ComparisonMode::Single {
+        return vec![(rect, rect)];
+    }
+    if mode == ComparisonMode::SplitWipe {
+        let x = |i: usize| {
+            let fraction = if i == 0 {
+                0.0
+            } else if i == count {
+                1.0
+            } else {
+                dividers
+                    .get(i - 1)
+                    .copied()
+                    .unwrap_or(i as f32 / count as f32)
+            };
+            rect.min.x + rect.width() * fraction
+        };
+        return (0..count)
+            .map(|i| {
+                let clip = Rect::from_min_max(
+                    Pos2::new(x(i), rect.min.y),
+                    Pos2::new(x(i + 1), rect.max.y),
+                );
+                (rect, clip)
+            })
+            .collect();
+    }
+    let columns = count.min(((rect.width() / 230.0).floor() as usize).max(2));
+    let rows = count.div_ceil(columns);
+    let cell = rect.size() / Vec2::new(columns as f32, rows as f32);
+    (0..count)
+        .map(|i| {
+            let origin = rect.min + Vec2::new((i % columns) as f32, (i / columns) as f32) * cell;
+            let pane = Rect::from_min_size(origin, cell);
+            (pane, pane)
+        })
+        .collect()
+}
+
+#[cfg(test)]
 pub(super) fn comparison_rects(
-    comparison: ComparisonMode,
+    mode: ComparisonMode,
     show_secondary: bool,
     rect: Rect,
     wipe_pos: f32,
 ) -> (Rect, Rect) {
-    match (comparison, show_secondary) {
-        (ComparisonMode::SideBySide, true) => {
-            let mid = rect.min.x + rect.width() * 0.5;
-            (
-                Rect::from_min_max(rect.min, Pos2::new(mid, rect.max.y)),
-                Rect::from_min_max(Pos2::new(mid, rect.min.y), rect.max),
-            )
-        }
-        (ComparisonMode::SplitWipe, true) => (
-            rect,
-            Rect::from_min_max(
-                Pos2::new(rect.min.x + rect.width() * wipe_pos, rect.min.y),
-                rect.max,
-            ),
-        ),
-        _ => (rect, rect),
-    }
+    let layout = pane_rects(mode, rect, if show_secondary { 2 } else { 1 }, &[wipe_pos]);
+    (layout[0].0, layout.get(1).map_or(rect, |pane| pane.1))
 }
 
 /// Pure layout helper: fit scale of an image into a rect, preserving aspect.
@@ -171,8 +204,7 @@ fn zoom_at_pointer(
     state.scale = Some(new_scale);
 }
 
-/// Primary-button drag: grabs the split-wipe divider when the press started
-/// near it (and then only moves the divider), otherwise pans the image.
+/// A split divider moves within its neighbouring strips. Other drags pan the canvas.
 fn drag(
     ui: &egui::Ui,
     response: &egui::Response,
@@ -180,248 +212,206 @@ fn drag(
     rect: Rect,
     wipe_active: bool,
 ) {
-    const GRAB_RADIUS: f32 = 12.0;
+    let nearest = |pos: Pos2| {
+        state
+            .wipe_dividers
+            .iter()
+            .enumerate()
+            .map(|(i, fraction)| (i, (pos.x - rect.min.x - rect.width() * fraction).abs()))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|&(_, distance)| distance < 12.0)
+            .map(|(index, _)| index)
+    };
     if !wipe_active {
-        state.wipe_dragging = false;
-    } else if response.drag_started_by(egui::PointerButton::Primary) {
-        let divider_x = rect.min.x + rect.width() * state.wipe_pos;
-        state.wipe_dragging = ui
-            .input(|i| i.pointer.press_origin())
-            .is_some_and(|pos| (pos.x - divider_x).abs() < GRAB_RADIUS);
+        state.wipe_dragging = None;
+    } else {
+        if response.hover_pos().and_then(nearest).is_some() || state.wipe_dragging.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+        if response.drag_started_by(egui::PointerButton::Primary) {
+            state.wipe_dragging = ui.input(|i| i.pointer.press_origin()).and_then(nearest);
+        }
     }
     if response.dragged_by(egui::PointerButton::Primary) {
-        if state.wipe_dragging {
+        if let Some(i) = state.wipe_dragging {
             if let Some(pos) = response.interact_pointer_pos() {
-                state.wipe_pos = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+                let before = i.checked_sub(1).map_or(0.0, |i| state.wipe_dividers[i]);
+                let after = state.wipe_dividers.get(i + 1).copied().unwrap_or(1.0);
+                let gap = (4.0 / rect.width()).min((after - before) / 2.0);
+                state.wipe_dividers[i] =
+                    ((pos.x - rect.min.x) / rect.width()).clamp(before + gap, after - gap);
             }
         } else {
             state.pan += response.drag_delta();
         }
     }
     if response.drag_stopped_by(egui::PointerButton::Primary) {
-        state.wipe_dragging = false;
+        state.wipe_dragging = None;
     }
 }
 
-/// Draw the canvas; return `(hovered_track, clicked_track)`.
+fn paint_tiles(painter: &egui::Painter, image: &PaintImage, view: &RegDisplay, clip: Rect) {
+    let tile_size = view.rect.size() / 3.0;
+    for row in 0..3 {
+        for col in 0..3 {
+            let origin = view.rect.min + Vec2::new(col as f32, row as f32) * tile_size;
+            let tile = Rect::from_min_size(origin, tile_size);
+            let tile_view = RegDisplay {
+                scale: view.scale,
+                rect: tile,
+                transform: view.transform,
+            };
+            paint_registered(painter, image, &tile_view, clip.intersect(tile));
+        }
+    }
+}
+
+/// Draw the configurations and return the primary pane's hovered and clicked tracks.
 pub(super) fn canvas(
     ui: &mut egui::Ui,
     state: &mut ImageViewerState,
-    input: CanvasInput<'_>,
+    panes: &[Pane],
+    comparison: ComparisonMode,
+    overlay: Option<OverlayPaintData>,
 ) -> (Option<TrackId>, Option<TrackId>) {
-    let CanvasInput {
-        primary,
-        message,
-        stale,
-        secondary,
-        comparison,
-        overlay,
-    } = input;
-    let overlay = overlay.filter(|_| !stale);
-
-    let avail = ui.available_size();
-    let (response, painter) =
-        ui.allocate_painter(avail.max(Vec2::splat(80.0)), Sense::click_and_drag());
+    let (response, painter) = ui.allocate_painter(
+        ui.available_size().max(Vec2::splat(80.0)),
+        Sense::click_and_drag(),
+    );
     let rect = response.rect;
-    painter.rect_filled(rect, 4.0, Color32::from_gray(24));
     let painter = painter.with_clip_rect(rect);
-
-    // Centred when there is no image at all, a small corner badge over a
-    // stale one.
-    let status_text = |painter: &egui::Painter, corner: bool| {
-        if let Some((msg, warn)) = &message {
-            let (pos, align, size) = if corner {
-                (
-                    rect.right_top() + Vec2::new(-8.0, 6.0),
-                    egui::Align2::RIGHT_TOP,
-                    12.0,
-                )
-            } else {
-                (rect.center(), egui::Align2::CENTER_CENTER, 14.0)
+    painter.rect_filled(rect, 4.0, Color32::from_gray(24));
+    let split = comparison == ComparisonMode::SplitWipe && panes.len() > 1;
+    if state.wipe_dividers.len() + 1 != panes.len() && split {
+        state.wipe_dividers = (1..panes.len())
+            .map(|i| i as f32 / panes.len() as f32)
+            .collect();
+        state.wipe_dragging = None;
+    }
+    drag(ui, &response, state, rect, split);
+    let layout = pane_rects(comparison, rect, panes.len(), &state.wipe_dividers);
+    let images: Vec<_> = panes.iter().map(Pane::image_for_layout).collect();
+    let basis = response
+        .hover_pos()
+        .and_then(|pos| layout.iter().position(|(_, clip)| clip.contains(pos)))
+        .filter(|&i| images[i].is_some())
+        .or_else(|| images.iter().position(Option::is_some));
+    if let Some(i) = basis {
+        let zoom_basis = if split {
+            images[0].as_ref().unwrap_or(images[i].as_ref().unwrap())
+        } else {
+            images[i].as_ref().unwrap()
+        };
+        zoom_at_pointer(ui, &response, state, zoom_basis, layout[i].0);
+        let limit =
+            image_rect_for(zoom_basis, layout[i].0, state).size() * 0.5 + layout[i].0.size() * 0.5;
+        state.pan = state.pan.clamp(-limit, limit);
+    }
+    let shared_scale = if split {
+        images
+            .iter()
+            .flatten()
+            .next()
+            .map(|img| effective_scale(img, rect, state))
+    } else {
+        None
+    };
+    let mut tracks = (None, None);
+    for (i, ((pane, image), &(viewport, clip))) in
+        panes.iter().zip(&images).zip(&layout).enumerate()
+    {
+        let pane_painter = painter.with_clip_rect(clip);
+        if let Some((image, layout_image)) = pane.image.as_ref().zip(image.as_ref()) {
+            let scale =
+                shared_scale.unwrap_or_else(|| effective_scale(layout_image, viewport, state));
+            let disp = Rect::from_center_size(
+                viewport.center() + state.pan,
+                Vec2::new(layout_image.size.0 as f32, layout_image.size.1 as f32) * scale,
+            );
+            let view = RegDisplay {
+                scale,
+                rect: disp,
+                transform: pane.transform,
             };
-            painter.text(
-                pos,
-                align,
-                msg,
-                egui::FontId::proportional(size),
-                if *warn {
+            let pane_overlay = overlay.as_ref().filter(|_| i == 0);
+            if pane_overlay.is_some_and(|o| o.flags.canvas_mode.clips_to_reference()) {
+                pane_painter.rect_filled(disp, 0.0, super::overlay::COLOR_NEUTRAL_BG);
+            }
+            if pane.tiled {
+                paint_tiles(&pane_painter, image, &view, clip);
+            } else {
+                paint_registered(&pane_painter, image, &view, clip);
+            }
+            if let Some(overlay) = pane_overlay {
+                if overlay.flags.canvas_mode == CanvasMode::ValidBoundary {
+                    pane_painter.rect_stroke(
+                        disp,
+                        0.0,
+                        egui::Stroke::new(1.0, Color32::from_gray(120)),
+                        StrokeKind::Inside,
+                    );
+                }
+                let pickable = overlay.style.is_pickable();
+                let pick = |pos: Pos2, radius| {
+                    (pickable && clip.contains(pos))
+                        .then(|| nearest_overlay_track(overlay, &view, pos, radius))
+                        .flatten()
+                };
+                let hovered = response.hover_pos().and_then(|pos| pick(pos, 14.0));
+                let clicked = if response.clicked() && state.wipe_dragging.is_none() {
+                    response
+                        .interact_pointer_pos()
+                        .and_then(|pos| pick(pos, 16.0))
+                } else {
+                    None
+                };
+                paint_overlay(&pane_painter, &view, overlay, &hovered);
+                tracks = (hovered, clicked);
+            }
+        }
+        if let Some((message, warning)) = &pane.message {
+            pane_painter.text(
+                if pane.image.is_some() {
+                    clip.right_top() + Vec2::new(-8.0, 6.0)
+                } else {
+                    clip.center()
+                },
+                if pane.image.is_some() {
+                    egui::Align2::RIGHT_TOP
+                } else {
+                    egui::Align2::CENTER_CENTER
+                },
+                message,
+                egui::FontId::proportional(12.0),
+                if *warning {
                     style::ERROR
                 } else {
-                    Color32::from_gray(150)
+                    Color32::from_gray(165)
                 },
             );
         }
-    };
-    let Some(primary) = primary else {
-        status_text(&painter, false);
-        return (None, None);
-    };
-
-    let transform = overlay
-        .as_ref()
-        .map(|o| o.transform)
-        .unwrap_or(RegistrationTransform::IDENTITY);
-
-    let show_secondary = comparison != ComparisonMode::Single && secondary.is_some();
-    let (primary_rect, secondary_rect) =
-        comparison_rects(comparison, show_secondary, rect, state.wipe_pos);
-
-    zoom_at_pointer(ui, &response, state, primary, primary_rect);
-    drag(
-        ui,
-        &response,
-        state,
-        rect,
-        comparison == ComparisonMode::SplitWipe && show_secondary,
-    );
-
-    // Bound pan so some image remains visible.
-    let primary_disp = image_rect_for(primary, primary_rect, state);
-    let max_pan = primary_disp.size() * 0.5 + primary_rect.size() * 0.5;
-    state.pan = state.pan.clamp(-max_pan, max_pan);
-    let primary_disp = image_rect_for(primary, primary_rect, state);
-
-    let primary_scale = effective_scale(primary, primary_rect, state);
-    let primary_view = RegDisplay {
-        scale: primary_scale,
-        rect: primary_disp,
-        transform,
-    };
-    let primary_region = if comparison == ComparisonMode::SideBySide && show_secondary {
-        primary_rect
-    } else {
-        rect
-    };
-
-    // Paint neutral backgrounds before images so they cannot cover the comparison pane.
-    // Clip registered images to reference bounds.
-    let clips_to_reference = overlay
-        .as_ref()
-        .is_some_and(|o| o.flags.canvas_mode.clips_to_reference());
-
-    let primary_clip = if comparison == ComparisonMode::SplitWipe && show_secondary {
-        Rect::from_min_max(
-            rect.min,
-            Pos2::new(rect.min.x + rect.width() * state.wipe_pos, rect.max.y),
-        )
-    } else {
-        primary_region
-    };
-
-    if clips_to_reference {
-        painter.with_clip_rect(primary_clip).rect_filled(
-            primary_disp,
-            0.0,
-            super::overlay::COLOR_NEUTRAL_BG,
-        );
-    }
-
-    if let Some(secondary) = secondary.filter(|_| show_secondary) {
-        let (sec_disp, sec_scale, sec_clip) = if comparison == ComparisonMode::SplitWipe {
-            let right = Rect::from_min_max(
-                Pos2::new(rect.min.x + rect.width() * state.wipe_pos, rect.min.y),
-                rect.max,
-            );
-            (primary_disp, primary_scale, right)
-        } else {
-            let d = image_rect_for(secondary, secondary_rect, state);
-            let s = effective_scale(secondary, secondary_rect, state);
-            let clip = if comparison == ComparisonMode::SideBySide {
-                secondary_rect
-            } else {
-                rect
-            };
-            (d, s, clip)
-        };
-        let sec_view = RegDisplay {
-            scale: sec_scale,
-            rect: sec_disp,
-            transform,
-        };
-        if clips_to_reference {
-            painter.with_clip_rect(sec_clip).rect_filled(
-                sec_disp,
-                0.0,
-                super::overlay::COLOR_NEUTRAL_BG,
-            );
-        }
-        paint_registered(&painter, secondary, &sec_view, sec_clip);
-    }
-
-    paint_registered(&painter, primary, &primary_view, primary_clip);
-
-    if comparison == ComparisonMode::SplitWipe && show_secondary {
-        let x = rect.min.x + rect.width() * state.wipe_pos;
-        painter.line_segment(
-            [Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)],
-            egui::Stroke::new(1.5, Color32::from_rgb(240, 170, 60)),
-        );
-    }
-
-    if show_secondary {
-        let label = |pos: Pos2, text: &str| {
-            painter.text(
-                pos,
+        if panes.len() > 1 {
+            pane_painter.text(
+                clip.left_top() + Vec2::new(6.0, 5.0),
                 egui::Align2::LEFT_TOP,
-                text,
-                egui::FontId::proportional(11.0),
-                Color32::from_gray(200),
-            );
-        };
-        label(Pos2::new(rect.min.x + 6.0, rect.min.y + 4.0), "primary");
-        if comparison == ComparisonMode::SideBySide {
-            label(
-                Pos2::new(rect.center().x + 6.0, rect.min.y + 4.0),
-                "secondary",
+                &pane.title,
+                egui::FontId::proportional(12.0),
+                Color32::from_gray(220),
             );
         }
-    }
-
-    if let Some(overlay) = &overlay {
-        if overlay.flags.canvas_mode == CanvasMode::ValidBoundary {
+        if split && i > 0 {
+            painter.line_segment(
+                [clip.left_top(), clip.left_bottom()],
+                egui::Stroke::new(1.5, Color32::from_rgb(240, 170, 60)),
+            );
+        } else if panes.len() > 1 && !split {
             painter.rect_stroke(
-                primary_disp,
+                clip,
                 0.0,
-                egui::Stroke::new(1.0, Color32::from_gray(120)),
+                egui::Stroke::new(1.0, Color32::from_gray(85)),
                 StrokeKind::Inside,
             );
         }
-    }
-
-    let (hovered, clicked) = if let Some(overlay) = &overlay {
-        let mut hovered = None;
-        // Pick only visible points in the primary pane.
-        let pointer_in_primary = overlay.style.is_pickable()
-            && response
-                .hover_pos()
-                .is_some_and(|pos| primary_region.contains(pos));
-        if pointer_in_primary {
-            if let Some(pos) = response.hover_pos() {
-                hovered = nearest_overlay_track(overlay, &primary_view, pos, 14.0);
-            }
-        }
-        // Clip the overlay to the primary pane.
-        let overlay_painter = painter.with_clip_rect(primary_region);
-        paint_overlay(&overlay_painter, &primary_view, overlay, &hovered);
-
-        let clicked = if response.clicked() && !state.wipe_dragging && overlay.style.is_pickable() {
-            response.interact_pointer_pos().and_then(|pos| {
-                if primary_region.contains(pos) {
-                    nearest_overlay_track(overlay, &primary_view, pos, 16.0)
-                } else {
-                    None
-                }
-            })
-        } else {
-            None
-        };
-        (hovered, clicked)
-    } else {
-        (None, None)
-    };
-
-    if stale {
-        status_text(&painter, true);
     }
     painter.rect_stroke(
         rect,
@@ -429,6 +419,5 @@ pub(super) fn canvas(
         egui::Stroke::new(1.0, Color32::from_gray(90)),
         StrokeKind::Inside,
     );
-
-    (hovered, clicked)
+    tracks
 }
