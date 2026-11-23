@@ -306,6 +306,12 @@ impl Shading {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaneMaterial {
+    pub shading: Shading,
+    pub files: SceneFiles,
+}
+
 /// Everything needed to draw the cloth, independent of the renderer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClothScene {
@@ -314,6 +320,7 @@ pub struct ClothScene {
     pub wrap: Wrap,
     pub shading: Shading,
     pub files: SceneFiles,
+    pub right: Option<PlaneMaterial>,
 }
 
 /// Decoded textures of a scene, in the order of [`SceneFiles`].
@@ -518,13 +525,30 @@ pub fn render_cloth(
     origin: Pos2,
     scale: f32,
 ) -> RgbaImage {
+    render_cloth_planes(scene, textures, None, size, origin, scale)
+}
+
+fn render_cloth_planes(
+    scene: &ClothScene,
+    textures: &SceneTextures,
+    right_textures: Option<&SceneTextures>,
+    size: [u32; 2],
+    origin: Pos2,
+    scale: f32,
+) -> RgbaImage {
     let mut image = RgbaImage::new(size[0], size[1]);
     let to_px = |p: Pos2| [(p.x - origin.x) * scale, (p.y - origin.y) * scale];
-    let tex = textures.size();
-    let setups: Vec<QuadSetup> = scene
+    let right = scene.right.as_ref().zip(right_textures);
+    let setups: Vec<_> = scene
         .quads
         .iter()
-        .filter_map(|q| QuadSetup::new(q, to_px, tex))
+        .filter_map(|q| {
+            let (shading, textures) = match (q.plane, right) {
+                (1, Some((material, textures))) => (&material.shading, textures),
+                _ => (&scene.shading, textures),
+            };
+            QuadSetup::new(q, to_px, textures.size()).map(|setup| (setup, shading, textures))
+        })
         .collect();
     let width = size[0] as usize;
     let threads = std::thread::available_parallelism()
@@ -542,7 +566,7 @@ pub fn render_cloth(
                 let first_row = chunk_index * rows_per_chunk;
                 for (row, line) in chunk.chunks_exact_mut(width * 4).enumerate() {
                     let y = (first_row + row) as f32 + 0.5;
-                    for setup in setups.iter() {
+                    for (setup, shading, textures) in setups {
                         if y < setup.bounds[1] - 1.0 || y > setup.bounds[3] + 1.0 {
                             continue;
                         }
@@ -552,7 +576,7 @@ pub fn render_cloth(
                             let Some(uv) = setup.uv_at(x as f32 + 0.5, y) else {
                                 continue;
                             };
-                            let rgb = shade_texel(scene, textures, setup, uv);
+                            let rgb = shade_texel(scene.wrap, shading, textures, setup, uv);
                             line[x * 4..x * 4 + 4].copy_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
                         }
                     }
@@ -564,13 +588,14 @@ pub fn render_cloth(
 }
 
 fn shade_texel(
-    scene: &ClothScene,
+    wrap: Wrap,
+    shading: &Shading,
     textures: &SceneTextures,
     setup: &QuadSetup,
     uv: [f32; 2],
 ) -> [u8; 3] {
-    let (wrap, lod) = (scene.wrap, setup.lod);
-    match (&scene.shading, textures) {
+    let lod = setup.lod;
+    match (shading, textures) {
         (Shading::Rgb { t }, SceneTextures::Rgb(c)) => shade_rgb(
             sample(&c[0], uv, lod, wrap),
             sample(&c[1], uv, lod, wrap),
@@ -724,9 +749,21 @@ impl CpuWorker {
                     }
                     // Surface worker panics instead of leaving the canvas waiting forever.
                     let image = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        SceneTextures::load(&job.scene.files, &mut cache).map(|textures| {
-                            render_cloth(&job.scene, &textures, job.size, job.origin, job.scale)
-                        })
+                        let textures = SceneTextures::load(&job.scene.files, &mut cache)?;
+                        let right = job
+                            .scene
+                            .right
+                            .as_ref()
+                            .map(|material| SceneTextures::load(&material.files, &mut cache))
+                            .transpose()?;
+                        Ok(render_cloth_planes(
+                            &job.scene,
+                            &textures,
+                            right.as_ref(),
+                            job.size,
+                            job.origin,
+                            job.scale,
+                        ))
                     }))
                     .unwrap_or_else(|_| Err("The CPU renderer failed unexpectedly".into()));
                     if result_tx.send(CpuResult { id: job.id, image }).is_err() {
@@ -961,6 +998,7 @@ mod tests {
             quads: cloth_quads(&flat, &projection, map, None),
             wrap: Wrap::Clamp,
             shading: Shading::Rgb { t: 0.0 },
+            right: None,
             files: SceneFiles::Rgb([PathBuf::new(), PathBuf::new()]),
         };
         let image = render_cloth(
@@ -983,6 +1021,40 @@ mod tests {
         assert_eq!(at(right, bottom), colours[2], "image bottom-left (blue)");
         assert_eq!(at(right, top), colours[3], "image bottom-right (yellow)");
         assert_eq!(image.get(0, 0)[3], 0);
+    }
+
+    #[test]
+    fn each_plane_uses_its_own_textures_and_blend() {
+        let canvas = Rect::from_min_size(Pos2::ZERO, Vec2::new(100.0, 100.0));
+        let projection = Projection::fit(canvas, ViewMode::Top, 1.0, 0.1);
+        let geometry = PackageGeometry::new(0.3, 0.1).unwrap();
+        let files = SceneFiles::Rgb([PathBuf::new(), PathBuf::new()]);
+        let scene = ClothScene {
+            quads: cloth_quads(
+                &geometry,
+                &projection,
+                SheetMap {
+                    pull_vertical: false,
+                },
+                None,
+            ),
+            wrap: Wrap::Clamp,
+            shading: Shading::Rgb { t: 0.0 },
+            files: files.clone(),
+            right: Some(PlaneMaterial {
+                shading: Shading::Rgb { t: 1.0 },
+                files,
+            }),
+        };
+        let color = |rgb| Arc::new(solid(TexKind::Srgb8, 1, 1, rgb));
+        let left = SceneTextures::Rgb([color([255, 0, 0]), color([0, 255, 0])]);
+        let right = SceneTextures::Rgb([color([0, 255, 0]), color([0, 0, 255])]);
+        let image = render_cloth_planes(&scene, &left, Some(&right), [100, 100], Pos2::ZERO, 1.0);
+        for (plane, expected) in [(0, [255, 0, 0, 255]), (1, [0, 0, 255, 255])] {
+            let [pull, depth] = geometry.point(plane, 0.5);
+            let center = projection.point(pull, depth, 0.5);
+            assert_eq!(image.get(center.x as u32, center.y as u32), expected);
+        }
     }
 
     #[test]
@@ -1020,6 +1092,7 @@ mod tests {
             }; 2],
             wrap: Wrap::Clamp,
             shading: Shading::Rgb { t: 0.0 },
+            right: None,
             files: SceneFiles::Rgb([
                 PathBuf::from("/nonexistent/a.png"),
                 PathBuf::from("/nonexistent/b.png"),

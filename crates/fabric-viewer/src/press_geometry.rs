@@ -172,6 +172,16 @@ impl Projection {
     /// Fits the whole scene into `canvas`: the full clamp span, the cloth width `across_len`
     /// (relative to the span) and a bar pressed down to `max_depth`.
     pub fn fit(canvas: Rect, mode: ViewMode, across_len: f32, max_depth: f32) -> Self {
+        Self::fit_at_most(canvas, mode, across_len, max_depth, f32::INFINITY)
+    }
+
+    pub fn fit_at_most(
+        canvas: Rect,
+        mode: ViewMode,
+        across_len: f32,
+        max_depth: f32,
+        max_scale: f32,
+    ) -> Self {
         let (sin, cos) = OBLIQUE_TILT_DEG.to_radians().sin_cos();
         let height = match mode {
             ViewMode::Top => across_len,
@@ -180,6 +190,7 @@ impl Projection {
         let margin = 0.06;
         let scale = ((canvas.width() / (1.0 + 2.0 * margin))
             .min(canvas.height() / (height + 2.0 * margin)))
+        .min(max_scale)
         .max(1.0);
         let origin = Pos2::new(
             canvas.center().x - scale * 0.5,
@@ -191,6 +202,18 @@ impl Projection {
             scale,
             across_len,
         }
+    }
+
+    /// Keep the initial physical zoom while resizing, anchored to the opposite edge.
+    pub fn resized(self, span_ratio: f32, across_len: f32, anchor: [f32; 2]) -> Self {
+        let fixed = self.point(anchor[0], 0.0, anchor[1]);
+        let mut resized = Self {
+            scale: self.scale * span_ratio,
+            across_len,
+            ..self
+        };
+        resized.origin += fixed - resized.point(anchor[0], 0.0, anchor[1]);
+        resized
     }
 
     pub fn mode(&self) -> ViewMode {
@@ -292,10 +315,14 @@ pub const BAR_GRAB_RADIUS: f32 = 14.0;
 
 /// Whether `p` is within [`BAR_GRAB_RADIUS`] of the bar segment.
 pub fn near_segment(p: Pos2, segment: [Pos2; 2]) -> bool {
+    segment_distance(p, segment) <= BAR_GRAB_RADIUS
+}
+
+pub fn segment_distance(p: Pos2, segment: [Pos2; 2]) -> f32 {
     let d: Vec2 = segment[1] - segment[0];
     let len2 = d.length_sq().max(1.0e-6);
     let t = ((p - segment[0]).dot(d) / len2).clamp(0.0, 1.0);
-    (p - (segment[0] + d * t)).length() <= BAR_GRAB_RADIUS
+    (p - (segment[0] + d * t)).length()
 }
 
 #[cfg(test)]

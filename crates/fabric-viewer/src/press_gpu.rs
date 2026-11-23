@@ -10,9 +10,7 @@ use eframe::egui_wgpu::{self, wgpu, CallbackResources, CallbackTrait, ScreenDesc
 use egui::{PaintCallbackInfo, Pos2, Rect};
 use wgpu::util::DeviceExt;
 
-use crate::press_render::{
-    ClothScene, MipChain, Pixels, RgbaImage, SceneFiles, Shading, TexKind, Wrap,
-};
+use crate::press_render::{ClothScene, MipChain, Pixels, RgbaImage, Shading, TexKind, Wrap};
 
 /// Shared by both shaders: the vertex stage, the colour helpers and the per-draw parameters.
 const PRELUDE: &str = r#"
@@ -290,15 +288,28 @@ impl GpuContext {
         })
     }
 
-    /// The paint callback for one cloth draw. `textures` are in the order of [`SceneFiles`]
-    /// (colour: two; relight: albedo pair then normal pair).
+    /// Paint both cloth planes with one material. Texture bindings follow
+    /// [`SceneFiles`](crate::press_render::SceneFiles) order.
     pub fn draw(
         &self,
         canvas: Rect,
         scene: &ClothScene,
         textures: Vec<Arc<GpuTexture>>,
     ) -> egui::epaint::PaintCallback {
-        egui_wgpu::Callback::new_paint_callback(canvas, self.quad_draw(canvas, scene, textures))
+        self.draw_plane(canvas, scene, textures, None)
+    }
+
+    pub(crate) fn draw_plane(
+        &self,
+        canvas: Rect,
+        scene: &ClothScene,
+        textures: Vec<Arc<GpuTexture>>,
+        plane: Option<usize>,
+    ) -> egui::epaint::PaintCallback {
+        egui_wgpu::Callback::new_paint_callback(
+            canvas,
+            self.quad_draw(canvas, scene, textures, plane),
+        )
     }
 
     fn quad_draw(
@@ -306,14 +317,20 @@ impl GpuContext {
         canvas: Rect,
         scene: &ClothScene,
         textures: Vec<Arc<GpuTexture>>,
+        plane: Option<usize>,
     ) -> QuadDraw {
+        let quads = plane.map_or(scene.quads.as_slice(), |p| &scene.quads[p..=p]);
+        let shading = match (plane, &scene.right) {
+            (Some(1), Some(right)) => &right.shading,
+            _ => &scene.shading,
+        };
         QuadDraw {
             pipelines: self.pipelines.clone(),
             textures,
-            relight: matches!(scene.files, SceneFiles::Relight { .. }),
+            relight: matches!(shading, Shading::Relight { .. }),
             wrap: scene.wrap,
-            vertices: vertices(scene, canvas),
-            params: params(&scene.shading),
+            vertices: vertices(quads, canvas),
+            params: params(shading),
             prepared: Mutex::new(None),
         }
     }
@@ -332,7 +349,7 @@ impl GpuContext {
             origin,
             egui::vec2(size[0] as f32 / scale, size[1] as f32 / scale),
         );
-        let draw = self.quad_draw(canvas, scene, textures);
+        let draw = self.quad_draw(canvas, scene, textures, None);
         draw.prepare_draw(&self.device);
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("press view offscreen target"),
@@ -562,7 +579,7 @@ fn layout_entry(binding: u32, ty: wgpu::BindingType) -> wgpu::BindGroupLayoutEnt
 
 /// Vertices `[x, y, u, v, plane]` of the two quads: `x, y` in the normalised device coordinates of
 /// `canvas`, the texture coordinate, and the plane index.
-fn vertices(scene: &ClothScene, canvas: Rect) -> Vec<[f32; 5]> {
+fn vertices(quads: &[crate::press_geometry::ClothQuad], canvas: Rect) -> Vec<[f32; 5]> {
     let to_ndc = |p: Pos2| {
         [
             (p.x - canvas.min.x) / canvas.width() * 2.0 - 1.0,
@@ -570,7 +587,7 @@ fn vertices(scene: &ClothScene, canvas: Rect) -> Vec<[f32; 5]> {
         ]
     };
     let mut out = Vec::with_capacity(12);
-    for quad in &scene.quads {
+    for quad in quads {
         for triangle in crate::press_geometry::ClothQuad::TRIANGLES {
             for i in triangle {
                 let i = i as usize;

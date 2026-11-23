@@ -10,14 +10,13 @@ cargo run --release -p fabric-viewer -- <project>
 ```
 
 Choose **View > Press View** or **+ View**. Each view has its own controls, so you can compare
-branches or lighting side by side. You can open one project or a folder containing several.
+measurements or lighting side by side. You can open one project or a folder containing several.
 
 ## Controls
 
 | Control | Use |
 | --- | --- |
 | Project / Package / Orientation | select the measurement; Package appears only when several generations exist |
-| Loading / Release | select the branch |
 | Tiled / Untiled | repeat the tile, or draw the registered atlas once |
 | Relight | shade the albedo and normals; requires photometric layers |
 | Oblique / Top | 30-degree oblique view or plan view |
@@ -30,7 +29,11 @@ Choose **Force** to drive the slider by strip tension in N, or **Indentation** f
 percentage of clamp span. Force is the load-cell reading, not the bar's force. An unreliable
 force fit defaults to Indentation; see [Force and indentation](#force-and-indentation).
 
-Drag the orange bar along the sheet (5–95 % of the span). Drag the light pad around for azimuth
+Drag an outer cloth edge to resize the sheet. The left and right edges change the clamp span,
+and the top and bottom edges change the width across the pull. **Reset** restores the source
+atlas dimensions. Drag the orange bar itself to move it along the sheet (5–95 % of the span). Loading textures appear on its left
+and release textures on its right. Each side samples its branch at the same stretch, including
+when relighting. A single available branch covers both sides. Drag the light pad around for azimuth
 or towards the centre for higher elevation. The pad uses screen coordinates, counter-clockwise
 from screen right.
 
@@ -38,7 +41,7 @@ Light defaults: azimuth 135°, elevation 45°, intensity 1, ambient 0.1. Intensi
 ambient from 0–1.
 
 The status line shows stretch `λ`, tension `F`, bar depth and position, and the two source frame
-IDs with their blend weight `t`. `(fit)` means the force came from the fit; `F n/a` means no fit.
+IDs and blend weight `t` for each available branch. `(fit)` means the force came from the fit; `F n/a` means no fit.
 Stretches outside the data range use the nearest state and are marked clamped.
 
 ## Package set discovery
@@ -80,9 +83,11 @@ For `active_grid_axis: vertical`, pull = atlas row `v` and across = `1 - u`. Thi
 image 90° counter-clockwise, preserving handedness. For `horizontal`, pull = column and
 across = row, with no rotation.
 
-Sheet aspect comes from the source atlas, including for tiled packages. For a vertical pull it
-is `width / height`. Tiled lookup uses `(material_uv - origin_uv) / period_uv`, wrapped per
-fragment; untiled lookup clamps to the atlas edges.
+The interactive sheet starts at the source atlas dimensions, using 0.06 mm/pixel. Tiled
+lookup uses `(material_uv - origin_uv) / period_uv`, wrapped per fragment. The period stays
+9.12 × 2.70 mm in the source texture axes as the sheet changes size. These axes rotate with
+the texture in a vertical pull. Untiled lookup fits the registered atlas to the sheet and
+clamps to its edges.
 
 `Projection` handles drawing and bar dragging. Pull is screen x, across is screen y in plan
 view, and the oblique view tilts by 30°.
@@ -224,8 +229,10 @@ Enable "Restore dock layout on launch" to restore them at startup. `PersistedPre
 | --- | --- |
 | `project` | source path of the project, matched against the open projects on restore |
 | `package_set` | `v3`, `v2`, or none (newest) |
-| `orientation`, `branch` | |
+| `orientation` | measurement orientation |
+| `branch` | force/indentation reference carried over from older views. New views use loading by default |
 | `tiling` | Tiled requested |
+| `sheet_mm` | clamp span and across-sheet width in mm, or none for the source atlas dimensions |
 | `relight`, `light` | toggle and the light (azimuth, elevation, intensity, ambient) |
 | `top_view` | plan view |
 | `control` | `Force`, `Indentation`, or none (automatic: Force when the fit is reliable) |

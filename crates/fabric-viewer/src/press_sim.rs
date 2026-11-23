@@ -7,7 +7,7 @@ use crate::material_package::{
 use crate::press_geometry::{
     cloth_quads, plane_light_in_data_frame, PackageGeometry, Projection, SheetMap, ViewMode,
 };
-use crate::press_render::{ClothScene, OverlayItem, SceneFiles, Shading, Wrap};
+use crate::press_render::{ClothScene, OverlayItem, PlaneMaterial, SceneFiles, Shading, Wrap};
 use egui::{Color32, Rect};
 
 /// What drives the press.
@@ -79,6 +79,7 @@ pub fn solve(
 pub struct PressScene {
     pub solved: Solved,
     pub plan: TexturePlan,
+    pub right_plan: Option<TexturePlan>,
     pub projection: Projection,
     pub cloth: ClothScene,
     pub overlay: Vec<OverlayItem>,
@@ -103,6 +104,39 @@ pub fn build_scene(
     request: &SceneRequest,
     canvas: Rect,
 ) -> Result<PressScene, String> {
+    build_scene_inner(package, request, canvas, None)
+}
+
+const MM_PER_PIXEL: f32 = 0.06;
+const TILE_MM: [f32; 2] = [9.12, 2.70];
+
+/// Resting dimensions in pull/across order.
+pub fn measured_sheet_mm(package: &MaterialPackage) -> [f32; 2] {
+    let mut size = package.atlas_px().map(|px| px as f32 * MM_PER_PIXEL);
+    if package.pull_vertical() {
+        size.swap(0, 1);
+    }
+    size
+}
+
+/// Build the interactive split, using the sole measured branch when only one exists.
+pub fn build_split_scene(
+    package: &MaterialPackage,
+    request: &SceneRequest,
+    canvas: Rect,
+    sheet_mm: [f32; 2],
+    drag_projection: Option<Projection>,
+) -> Result<PressScene, String> {
+    build_scene_inner(package, request, canvas, Some((sheet_mm, drag_projection)))
+}
+
+fn build_scene_inner(
+    package: &MaterialPackage,
+    request: &SceneRequest,
+    canvas: Rect,
+    split_sheet: Option<([f32; 2], Option<Projection>)>,
+) -> Result<PressScene, String> {
+    let split = split_sheet.is_some();
     let (_, lambda_max) = package.stretch_range(request.branch).ok_or_else(|| {
         format!(
             "No measured {} states in this package.",
@@ -116,56 +150,104 @@ pub fn build_scene(
         lambda_max,
         request.previous_lambda,
     );
-    let plan = package.texture_plan(request.branch, solved.geometry.lambda)?;
+    let left = if split && package.stretch_range(PressBranch::Loading).is_some() {
+        PressBranch::Loading
+    } else {
+        request.branch
+    };
+    let plan = package.texture_plan(left, solved.geometry.lambda)?;
+    let right_plan = if split
+        && left != PressBranch::Release
+        && package.stretch_range(PressBranch::Release).is_some()
+    {
+        Some(package.texture_plan(PressBranch::Release, solved.geometry.lambda)?)
+    } else {
+        None
+    };
     let map = SheetMap {
         pull_vertical: package.pull_vertical(),
     };
     let max_depth = PackageGeometry::max_delta(0.5, lambda_max);
-    let projection = Projection::fit(
-        canvas,
-        request.view,
-        map.across_length(package.atlas_px()),
-        max_depth,
-    );
-    let quads = cloth_quads(&solved.geometry, &projection, map, package.tiling());
+    let native_aspect = map.across_length(package.atlas_px());
+    let mut tiling = package.tiling();
+    let projection = if let Some(([pull, across], drag_projection)) = split_sheet {
+        let canvas = canvas.shrink2(canvas.size() * 0.06);
+        let native = Projection::fit(canvas, request.view, native_aspect, max_depth);
+        let [native_pull, _] = measured_sheet_mm(package);
+        let projection = drag_projection.unwrap_or_else(|| {
+            Projection::fit_at_most(
+                canvas,
+                request.view,
+                across / pull,
+                max_depth,
+                native.scale() * pull / native_pull,
+            )
+        });
+        if let Some(tiling) = &mut tiling {
+            let mut sheet_texture_axes = [pull, across];
+            if map.pull_vertical {
+                sheet_texture_axes.swap(0, 1);
+            }
+            for axis in 0..2 {
+                let atlas_mm = package.atlas_px()[axis] as f32 * MM_PER_PIXEL;
+                tiling.origin_uv[axis] *= atlas_mm / sheet_texture_axes[axis];
+                tiling.period_uv[axis] = TILE_MM[axis] / sheet_texture_axes[axis];
+            }
+        }
+        projection
+    } else {
+        Projection::fit(canvas, request.view, native_aspect, max_depth)
+    };
+    let quads = cloth_quads(&solved.geometry, &projection, map, tiling);
     let wrap = if package.tiling().is_some() {
         Wrap::Repeat
     } else {
         Wrap::Clamp
     };
-    let (shading, files) = match request.relight {
-        None => (
-            Shading::Rgb { t: plan.t },
-            SceneFiles::Rgb(plan.textures.clone()),
-        ),
-        Some(light) => {
-            let photometric = package.photometric().map_err(|reason| reason.to_string())?;
-            let (Some(albedo), Some(normal)) = (plan.albedo.clone(), plan.normal.clone()) else {
-                return Err(NO_PHOTOMETRIC_NOTE.into());
-            };
-            (
-                Shading::Relight {
-                    t: plan.t,
-                    intensity: light.intensity,
-                    ambient: light.ambient,
-                    albedo_scale: photometric.albedo_scale,
-                    plane_lights: [0, 1]
-                        .map(|p| plane_light_in_data_frame(&light, map, solved.geometry.tilt(p))),
-                },
-                SceneFiles::Relight { albedo, normal },
-            )
-        }
+    let material = |plan: &TexturePlan| -> Result<_, String> {
+        Ok(match request.relight {
+            None => (
+                Shading::Rgb { t: plan.t },
+                SceneFiles::Rgb(plan.textures.clone()),
+            ),
+            Some(light) => {
+                let photometric = package.photometric().map_err(|reason| reason.to_string())?;
+                let (Some(albedo), Some(normal)) = (plan.albedo.clone(), plan.normal.clone())
+                else {
+                    return Err(NO_PHOTOMETRIC_NOTE.into());
+                };
+                (
+                    Shading::Relight {
+                        t: plan.t,
+                        intensity: light.intensity,
+                        ambient: light.ambient,
+                        albedo_scale: photometric.albedo_scale,
+                        plane_lights: [0, 1].map(|p| {
+                            plane_light_in_data_frame(&light, map, solved.geometry.tilt(p))
+                        }),
+                    },
+                    SceneFiles::Relight { albedo, normal },
+                )
+            }
+        })
     };
+    let (shading, files) = material(&plan)?;
+    let right = right_plan
+        .as_ref()
+        .map(|plan| material(plan).map(|(shading, files)| PlaneMaterial { shading, files }))
+        .transpose()?;
     let overlay = overlay_items(&solved.geometry, &projection);
     Ok(PressScene {
         solved,
         plan,
+        right_plan,
         projection,
         cloth: ClothScene {
             quads,
             wrap,
             shading,
             files,
+            right,
         },
         overlay,
     })

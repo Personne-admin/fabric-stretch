@@ -5,12 +5,18 @@ use crate::lighting::{self, Light};
 use crate::material_package::{
     ForceFit, MaterialPackage, PackageSet, PressBranch, TexturePlan, VariantChoice,
 };
-use crate::press_geometry::{near_segment, PackageGeometry, ViewMode};
+use crate::press_geometry::{
+    near_segment, segment_distance, ClothQuad, PackageGeometry, Projection, ViewMode,
+};
 use crate::press_gpu::GpuTexture;
 use crate::press_render::{
     ClothScene, CpuJob, CpuWorker, OverlayItem, RgbaImage, SceneFiles, TexKind,
 };
-use crate::press_sim::{build_scene, Control, PressScene, SceneRequest, BETA_RANGE};
+#[cfg(test)]
+use crate::press_sim::build_scene;
+use crate::press_sim::{
+    build_split_scene, measured_sheet_mm, Control, PressScene, SceneRequest, BETA_RANGE,
+};
 use crate::press_store::{PackageStore, Textures};
 use crate::project::ProjectSlot;
 use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Vec2};
@@ -49,6 +55,8 @@ pub struct PersistedPressView {
     pub branch: String,
     /// The Tiled texture is requested (Untiled otherwise).
     pub tiling: bool,
+    /// Resting sheet dimensions in pull/across order.
+    pub sheet_mm: Option<[f32; 2]>,
     pub relight: bool,
     pub light: Light,
     pub top_view: bool,
@@ -76,6 +84,7 @@ impl Default for PersistedPressView {
             orientation: "warp".into(),
             branch: "loading".into(),
             tiling: true,
+            sheet_mm: None,
             relight: false,
             light: Light::default(),
             top_view: false,
@@ -115,6 +124,89 @@ struct CpuRender {
     error: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+enum SheetEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+impl SheetEdge {
+    fn axis(self) -> usize {
+        match self {
+            Self::Left | Self::Right => 0,
+            Self::Top | Self::Bottom => 1,
+        }
+    }
+
+    fn near_side(self) -> bool {
+        matches!(self, Self::Left | Self::Top)
+    }
+
+    fn cursor(self) -> CursorIcon {
+        match self.axis() {
+            0 => CursorIcon::ResizeHorizontal,
+            _ => CursorIcon::ResizeVertical,
+        }
+    }
+
+    fn segments(self, [left, right]: &[ClothQuad; 2]) -> impl Iterator<Item = [Pos2; 2]> {
+        let [a, b, c, d] = left.pos;
+        let [e, f, g, h] = right.pos;
+        let [first, second] = match self {
+            Self::Left => [Some([a, c]), None],
+            Self::Right => [Some([f, h]), None],
+            Self::Top => [Some([a, b]), Some([e, f])],
+            Self::Bottom => [Some([c, d]), Some([g, h])],
+        };
+        first.into_iter().chain(second)
+    }
+
+    fn at(pointer: Pos2, quads: &[ClothQuad; 2]) -> Option<Self> {
+        [Self::Left, Self::Right, Self::Top, Self::Bottom]
+            .into_iter()
+            .flat_map(|edge| {
+                edge.segments(quads)
+                    .map(move |segment| (edge, segment_distance(pointer, segment)))
+            })
+            .filter(|&(_, distance)| distance <= 8.0)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(edge, _)| edge)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct EdgeDrag {
+    start: Pos2,
+    edge: SheetEdge,
+    sheet_mm: [f32; 2],
+    initial: Projection,
+}
+
+impl EdgeDrag {
+    fn size_at(self, pointer: Pos2) -> [f32; 2] {
+        let [pull, across] = self.sheet_mm;
+        let across_points =
+            self.initial.point(0.0, 0.0, 1.0).y - self.initial.point(0.0, 0.0, 0.0).y;
+        let mm_per_point = [pull / self.initial.scale(), across / across_points];
+        let delta = pointer - self.start;
+        let axis = self.edge.axis();
+        let direction = if self.edge.near_side() { -1.0 } else { 1.0 };
+        let mut size = self.sheet_mm;
+        size[axis] = (size[axis] + direction * [delta.x, delta.y][axis] * mm_per_point[axis])
+            .clamp(0.06, 10_000.0);
+        size
+    }
+
+    fn projection(self, [pull, across]: [f32; 2]) -> Projection {
+        let mut anchor = [0.0; 2];
+        anchor[self.edge.axis()] = if self.edge.near_side() { 1.0 } else { 0.0 };
+        self.initial
+            .resized(pull / self.sheet_mm[0], across / pull, anchor)
+    }
+}
+
 /// Independent view state; packages and textures are shared through [`PackageStore`].
 pub struct PressTab {
     id: u32,
@@ -123,6 +215,7 @@ pub struct PressTab {
     orientation: String,
     branch: PressBranch,
     tiled: bool,
+    sheet_mm: Option<[f32; 2]>,
     relight: bool,
     light: Light,
     view: ViewMode,
@@ -136,9 +229,10 @@ pub struct PressTab {
     /// Mode the last frame was drawn in, to hand the state over when the mode changes.
     last_mode: Option<ControlMode>,
     dragging_bar: bool,
+    edge_drag: Option<EdgeDrag>,
     cpu: CpuRender,
     /// The textures of the last complete GPU draw, shown while the next ones load.
-    gpu_last: Option<Vec<Arc<GpuTexture>>>,
+    gpu_last: Option<Vec<Vec<Arc<GpuTexture>>>>,
     /// Fraction of the force range scripted by the screenshot recorder.
     #[cfg(feature = "demo")]
     demo_force: Option<f32>,
@@ -170,6 +264,7 @@ impl PressTab {
             orientation: "warp".into(),
             branch: PressBranch::Loading,
             tiled: true,
+            sheet_mm: None,
             relight: false,
             light: Light::default(),
             view: ViewMode::Oblique,
@@ -180,6 +275,7 @@ impl PressTab {
             lambda: None,
             last_mode: None,
             dragging_bar: false,
+            edge_drag: None,
             cpu: CpuRender::default(),
             gpu_last: None,
             #[cfg(feature = "demo")]
@@ -233,6 +329,7 @@ impl PressTab {
         self.lambda = None;
         self.last_mode = None;
         self.dragging_bar = false;
+        self.edge_drag = None;
     }
 
     pub fn persisted(&self, slots: &[ProjectSlot]) -> PersistedPressView {
@@ -246,6 +343,7 @@ impl PressTab {
             orientation: self.orientation.clone(),
             branch: self.branch.name().into(),
             tiling: self.tiled,
+            sheet_mm: self.sheet_mm,
             relight: self.relight,
             light: self.light,
             top_view: self.view == ViewMode::Top,
@@ -271,6 +369,9 @@ impl PressTab {
         self.orientation = s.orientation;
         self.branch = PressBranch::from_name(&s.branch);
         self.tiled = s.tiling;
+        self.sheet_mm = s
+            .sheet_mm
+            .filter(|mm| mm.iter().all(|&v| v.is_finite() && v > 0.0));
         self.relight = s.relight;
         self.light = s.light;
         self.view = if s.top_view {
@@ -365,6 +466,7 @@ impl PressTab {
         }
         if actions.reset {
             self.reset_press_state();
+            self.sheet_mm = None;
         }
         if actions.changed {
             ui.ctx().request_repaint();
@@ -489,15 +591,6 @@ impl PressTab {
                 }
             }
             ui.separator();
-            for branch in [PressBranch::Loading, PressBranch::Release] {
-                if ui
-                    .add(egui::Button::selectable(self.branch == branch, branch.label()))
-                    .clicked()
-                {
-                    self.branch = branch;
-                }
-            }
-            ui.separator();
             ui.label("Texture");
             let tiled_now = variant.is_some_and(|v| v.tiled);
             let (tiled_ok, untiled_ok) = variant.map_or((false, false), |v| {
@@ -589,7 +682,14 @@ impl PressTab {
         orientation: &str,
         variant: &VariantChoice,
     ) {
-        let branch = self.branch;
+        let branch = if package.stretch_range(self.branch).is_some() {
+            self.branch
+        } else {
+            match self.branch {
+                PressBranch::Loading => PressBranch::Release,
+                PressBranch::Release => PressBranch::Loading,
+            }
+        };
         let Some((_, lambda_max)) = package.stretch_range(branch) else {
             ui.label(format!(
                 "No measured {} states in this package.",
@@ -659,7 +759,9 @@ impl PressTab {
             view: self.view,
             relight: relight_light,
         };
-        let scene = match build_scene(package, &request, canvas) {
+        let sheet_mm = self.sheet_mm.unwrap_or_else(|| measured_sheet_mm(package));
+        let drag_projection = self.edge_drag.map(|drag| drag.projection(sheet_mm));
+        let scene = match build_split_scene(package, &request, canvas, sheet_mm, drag_projection) {
             Ok(scene) => scene,
             Err(error) => {
                 ui.colored_label(Color32::YELLOW, error);
@@ -675,9 +777,17 @@ impl PressTab {
         }
         self.lambda = Some(scene.solved.geometry.lambda);
 
-        self.interact_with_bar(ui, &response, &scene);
+        let edge = self.interact_with_edges(ui, &response, &scene, sheet_mm);
+        if edge.is_none() {
+            self.interact_with_bar(ui, &response, &scene);
+        }
         self.draw_cloth(ui, store, canvas, package, &scene);
         let painter = ui.painter_at(canvas);
+        if let Some(edge) = edge {
+            for [a, b] in edge.segments(&scene.cloth.quads) {
+                painter.line_segment([a, b], Stroke::new(2.0, Color32::WHITE));
+            }
+        }
         for item in &scene.overlay {
             match *item {
                 OverlayItem::Disc {
@@ -692,7 +802,7 @@ impl PressTab {
                 }
             }
         }
-        ui.label(status_line(
+        let status = status_line(
             &scene,
             package,
             set.label,
@@ -700,7 +810,9 @@ impl PressTab {
             variant.tiled,
             relight_light.is_some(),
             mode,
-        ));
+        );
+        ui.add(egui::Label::new(&status).truncate())
+            .on_hover_text(status);
     }
 
     /// The control mode in effect: the user's choice, or Force when the fit is reliable.
@@ -811,6 +923,53 @@ impl PressTab {
         });
     }
 
+    fn interact_with_edges(
+        &mut self,
+        ui: &egui::Ui,
+        response: &egui::Response,
+        scene: &PressScene,
+        sheet_mm: [f32; 2],
+    ) -> Option<SheetEdge> {
+        let bar = scene.projection.bar(&scene.solved.geometry);
+        let edge_at = |p| {
+            if near_segment(p, bar) {
+                None
+            } else {
+                SheetEdge::at(p, &scene.cloth.quads)
+            }
+        };
+        if response.drag_started() {
+            if let Some((start, edge)) = ui
+                .input(|i| i.pointer.press_origin())
+                .and_then(|start| edge_at(start).map(|edge| (start, edge)))
+            {
+                self.edge_drag = Some(EdgeDrag {
+                    start,
+                    edge,
+                    sheet_mm,
+                    initial: scene.projection,
+                });
+            }
+        }
+        if let Some(drag) = self.edge_drag {
+            if let Some(pointer) = response.interact_pointer_pos() {
+                self.sheet_mm = Some(drag.size_at(pointer));
+            }
+            if response.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
+                self.edge_drag = None;
+            }
+            ui.ctx().set_cursor_icon(drag.edge.cursor());
+            ui.ctx().request_repaint();
+            return Some(drag.edge);
+        }
+        if self.dragging_bar || response.dragged() {
+            return None;
+        }
+        let edge = response.hover_pos().and_then(edge_at)?;
+        ui.ctx().set_cursor_icon(edge.cursor());
+        Some(edge)
+    }
+
     /// Bar dragging: grab the bar, follow the pointer, keep the bar inside the sheet.
     fn interact_with_bar(&mut self, ui: &egui::Ui, response: &egui::Response, scene: &PressScene) {
         let bar = scene.projection.bar(&scene.solved.geometry);
@@ -860,15 +1019,31 @@ impl PressTab {
                     Color32::YELLOW,
                 );
             };
-            let textures = match store.gpu_textures(ui.ctx(), &scene.cloth.files) {
-                Ok(Textures::Ready(textures)) => {
-                    self.gpu_last = Some(textures.clone());
-                    prefetch_neighbours(ui.ctx(), store, package, &scene.plan, expected == 4);
-                    Some(textures)
-                }
-                // Keep showing the last complete pair (blended with the new weight) meanwhile.
-                Ok(Textures::Loading) => {
-                    self.gpu_last.clone().filter(|last| last.len() == expected)
+            let files = std::iter::once(&scene.cloth.files)
+                .chain(scene.cloth.right.iter().map(|right| &right.files));
+            let requested: Result<Vec<_>, _> = files
+                .map(|files| store.gpu_textures(ui.ctx(), files))
+                .collect();
+            let plane_count = 1 + usize::from(scene.cloth.right.is_some());
+            let textures = match requested {
+                Ok(requested) => {
+                    let ready: Option<Vec<_>> = requested
+                        .into_iter()
+                        .map(|result| match result {
+                            Textures::Ready(textures) => Some(textures),
+                            Textures::Loading => None,
+                        })
+                        .collect();
+                    if let Some(ready) = ready {
+                        self.gpu_last = Some(ready);
+                        for plan in std::iter::once(&scene.plan).chain(scene.right_plan.iter()) {
+                            prefetch_neighbours(ui.ctx(), store, package, plan, expected == 4);
+                        }
+                    }
+                    self.gpu_last.as_ref().filter(|last| {
+                        last.len() == plane_count
+                            && last.iter().all(|plane| plane.len() == expected)
+                    })
                 }
                 Err(error) => {
                     self.gpu_last = None;
@@ -878,7 +1053,10 @@ impl PressTab {
             };
             match (textures, store.gpu()) {
                 (Some(textures), Some(gpu)) => {
-                    painter.add(gpu.draw(canvas, &scene.cloth, textures));
+                    for (index, textures) in textures.iter().enumerate() {
+                        let plane = (plane_count == 2).then_some(index);
+                        painter.add(gpu.draw_plane(canvas, &scene.cloth, textures.clone(), plane));
+                    }
                 }
                 _ => message("Loading textures..."),
             }
@@ -1068,20 +1246,26 @@ pub fn status_line(
         },
     );
     let frame = |i: Option<i64>| i.map_or_else(|| "?".to_owned(), |f| f.to_string());
-    let plan = &scene.plan;
-    let clamped = if plan.clamped {
-        ", clamped to the nearest state"
-    } else {
-        ""
+    let describe_plan = |plan: &TexturePlan| {
+        let clamped = if plan.clamped { " (clamped)" } else { "" };
+        format!(
+            "{} states {} / {} @ t={:.2}{clamped}",
+            plan.branch.label(),
+            frame(plan.frames[0]),
+            frame(plan.frames[1]),
+            plan.t,
+        )
     };
+    let mut states = describe_plan(&scene.plan);
+    if let Some(right) = &scene.right_plan {
+        states.push_str(" · ");
+        states.push_str(&describe_plan(right));
+    }
     format!(
-        "\u{3bb} {:.3} \u{b7} {force} \u{b7} indentation {:.1} % \u{b7} bar {:.0} % \u{b7} states {} / {} @ t={:.2}{clamped} \u{b7} {} {orientation}, {}{} (v{})",
+        "λ {:.3} · {force} · indentation {:.1} % · bar {:.0} % · {states} · {} {orientation}, {}{} (v{})",
         g.lambda,
         g.delta * 100.0,
         g.beta * 100.0,
-        frame(plan.frames[0]),
-        frame(plan.frames[1]),
-        plan.t,
         set_label,
         if tiled { "tiled" } else { "untiled" },
         if relit { ", relit" } else { "" },
@@ -1281,6 +1465,7 @@ mod tests {
             va.orientation = "warp".into();
             va.branch = PressBranch::Release;
             va.tiled = false;
+            va.sheet_mm = Some([12.5, 8.0]);
             va.relight = true;
             va.light = Light {
                 azimuth_deg: 10.0,
@@ -1311,6 +1496,8 @@ mod tests {
             "negative tension is kept"
         );
         assert_eq!(ra.package_set.as_deref(), Some("v3"));
+        assert_eq!(ra.sheet_mm, Some([12.5, 8.0]));
+        assert_eq!(rb.sheet_mm, None);
         assert_eq!(
             (ra.relight, ra.light, ra.view),
             (true, views.get(a).unwrap().light, ViewMode::Top)
@@ -1611,6 +1798,49 @@ mod tests {
     }
 
     #[test]
+    fn split_scene_resizes_the_quads_and_keeps_the_measured_repeat() {
+        let package =
+            MaterialPackage::load(&demo_project().join("material_package_v3/warp")).unwrap();
+        let request = SceneRequest {
+            branch: PressBranch::Loading,
+            control: Control::Indentation(0.1),
+            beta: 0.3,
+            previous_lambda: 1.0,
+            view: ViewMode::Top,
+            relight: Some(Light::default()),
+        };
+        let canvas = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0));
+        let [pull, across] = measured_sheet_mm(&package);
+        let native = build_split_scene(&package, &request, canvas, [pull, across], None).unwrap();
+        let resized =
+            build_split_scene(&package, &request, canvas, [pull * 0.5, across], None).unwrap();
+        assert_eq!(native.plan.branch, PressBranch::Loading);
+        let right = native.right_plan.unwrap();
+        assert_eq!(right.branch, PressBranch::Release);
+        let SceneFiles::Relight { albedo, normal } = native.cloth.right.unwrap().files else {
+            panic!("expected release photometric layers");
+        };
+        assert_eq!(Some(albedo), right.albedo);
+        assert_eq!(Some(normal), right.normal);
+
+        let [left, right] = &resized.cloth.quads;
+        assert_eq!(left.uv[1], right.uv[0]);
+        assert_eq!(left.uv[3], right.uv[2]);
+        let repeats_across = (left.uv[2][0] - left.uv[0][0]).abs();
+        let repeats_along = (right.uv[1][1] - left.uv[0][1]).abs();
+        assert!((repeats_across - across / 9.12).abs() < 1e-5);
+        assert!((repeats_along - pull * 0.5 / 2.70).abs() < 1e-5);
+        assert!((resized.projection.scale() - native.projection.scale() * 0.5).abs() < 1e-4);
+        assert!(
+            (left.pos[2].y
+                - left.pos[0].y
+                - (native.cloth.quads[0].pos[2].y - native.cloth.quads[0].pos[0].y))
+                .abs()
+                < 1e-4
+        );
+    }
+
+    #[test]
     fn the_status_line_reports_the_state() {
         let package =
             MaterialPackage::load(&demo_project().join("material_package_v3_untiled/warp"))
@@ -1656,6 +1886,50 @@ mod tests {
             ControlMode::Force,
         );
         assert!(forced.contains("tiled") && forced.contains("relit") && !forced.contains("(fit)"));
+    }
+
+    #[test]
+    fn dragging_edges_resizes_along_one_axis_and_anchors_the_opposite_edge() {
+        for mode in [ViewMode::Top, ViewMode::Oblique] {
+            let canvas = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0));
+            let initial = Projection::fit(canvas, mode, 2.0, 0.1);
+            let sheet_mm = [10.0, 20.0];
+            for (edge, moving, fixed, axis) in [
+                (SheetEdge::Left, [0.0, 0.0], [1.0, 0.0], 0),
+                (SheetEdge::Right, [1.0, 0.0], [0.0, 0.0], 0),
+                (SheetEdge::Top, [0.0, 0.0], [0.0, 1.0], 1),
+                (SheetEdge::Bottom, [0.0, 1.0], [0.0, 0.0], 1),
+            ] {
+                let start = initial.point(moving[0], 0.0, moving[1]);
+                let delta = if axis == 0 {
+                    Vec2::new(10.0, 0.0)
+                } else {
+                    Vec2::new(0.0, 10.0)
+                };
+                let drag = EdgeDrag {
+                    start,
+                    edge,
+                    sheet_mm,
+                    initial,
+                };
+                let size = drag.size_at(start + delta);
+                assert_ne!(size[axis], sheet_mm[axis]);
+                assert_eq!(size[1 - axis], sheet_mm[1 - axis]);
+                let projection = drag.projection(size);
+                assert!(
+                    projection
+                        .point(moving[0], 0.0, moving[1])
+                        .distance(start + delta)
+                        < 1e-4
+                );
+                assert!(
+                    projection
+                        .point(fixed[0], 0.0, fixed[1])
+                        .distance(initial.point(fixed[0], 0.0, fixed[1]))
+                        < 1e-4
+                );
+            }
+        }
     }
 
     #[test]
