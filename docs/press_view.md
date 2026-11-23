@@ -44,6 +44,24 @@ The status line shows stretch `λ`, tension `F`, bar depth and position, and the
 IDs and blend weight `t` for each available branch. `(fit)` means the force came from the fit; `F n/a` means no fit.
 Stretches outside the data range use the nearest state and are marked clamped.
 
+## Synchronize two views
+
+With two or more Press Views open, open **Sync** in either view and choose **Link with Press
+View** for the partner you want. This starts by linking bar position. Reopen **Sync** in either
+view to choose any combination of **Bar position**, **Sheet size**, **Force**, and **Relighting**.
+
+- **Bar position** shares the bar's position as a fraction of the clamp span.
+- **Sheet size** shares the clamp span and across-sheet width in millimetres. Drag an outer
+  edge in either view to resize both sheets.
+- **Force** shares the requested tension in newtons. Each view applies its measured force
+  range. A view without a usable force curve continues to use indentation.
+- **Relighting** shares the on/off setting, light direction, intensity, and ambient fill.
+  Rendering still requires photometric layers in each view.
+
+Either view can drive the linked controls. When you enable a control, the link starts with the
+value from the view where you enabled it. **Unlink** or closing a partner ends the link. Links
+last for the current session.
+
 ## Package set discovery
 
 The viewer searches the project folder in this order:

@@ -248,6 +248,62 @@ impl Default for PressTab {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PressUiOutput {
     pub add_view: bool,
+    bar_changed: bool,
+    sheet_size: Option<[f32; 2]>,
+    force_changed: bool,
+    force_ready: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ForceLock {
+    requested_n: Option<f32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SheetSizeLock {
+    WaitingFor(u32),
+    Size([f32; 2]),
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct PressSync {
+    beta: Option<f32>,
+    sheet: Option<SheetSizeLock>,
+    force: Option<ForceLock>,
+    relight: Option<(bool, Light)>,
+}
+
+impl PressSync {
+    fn apply(self, view: &mut PressTab) {
+        if let Some(beta) = self.beta {
+            view.beta = beta;
+        }
+        if let Some(SheetSizeLock::Size(size)) = self.sheet {
+            view.sheet_mm = Some(size);
+        }
+        if let Some((relight, light)) = self.relight {
+            view.relight = relight;
+            view.light = light;
+        }
+    }
+
+    fn update(&mut self, view: &PressTab, out: PressUiOutput, previous_light: (bool, Light)) {
+        if self.beta.is_some() && out.bar_changed {
+            self.beta = Some(view.beta);
+        }
+        if let Some(force) = &mut self.force {
+            if out.force_changed || (force.requested_n.is_none() && out.force_ready) {
+                force.requested_n = view.force_n;
+            }
+        }
+        if let (Some(_), Some(size)) = (self.sheet, out.sheet_size) {
+            self.sheet = Some(SheetSizeLock::Size(size));
+        }
+        let light = (view.relight, view.light);
+        if self.relight.is_some() && light != previous_light {
+            self.relight = Some(light);
+        }
+    }
 }
 
 /// Default bar position.
@@ -403,6 +459,18 @@ impl PressTab {
         default_project: Option<&Path>,
         store: &mut PackageStore,
     ) -> PressUiOutput {
+        self.ui_with_sync(ui, slots, default_project, store, PressSync::default())
+    }
+
+    fn ui_with_sync(
+        &mut self,
+        ui: &mut egui::Ui,
+        slots: &[ProjectSlot],
+        default_project: Option<&Path>,
+        store: &mut PackageStore,
+        sync: PressSync,
+    ) -> PressUiOutput {
+        sync.apply(self);
         let mut out = PressUiOutput::default();
         if slots.is_empty() {
             ui.centered_and_justified(|ui| {
@@ -467,6 +535,13 @@ impl PressTab {
         if actions.reset {
             self.reset_press_state();
             self.sheet_mm = None;
+            out.bar_changed = true;
+            out.sheet_size = package
+                .as_ref()
+                .and_then(|p| p.as_ref().ok())
+                .map(|p| measured_sheet_mm(p));
+        } else if let Some(beta) = sync.beta {
+            self.beta = beta;
         }
         if actions.changed {
             ui.ctx().request_repaint();
@@ -499,10 +574,22 @@ impl PressTab {
             return out;
         };
         show_problems(ui, &problems);
-        match package {
-            Some(Ok(package)) => {
-                self.package_body(ui, store, &package, set, orientation.name.as_str(), variant)
+        if sync.sheet == Some(SheetSizeLock::WaitingFor(self.id)) {
+            if let Some(Ok(package)) = &package {
+                out.sheet_size = Some(self.sheet_mm.unwrap_or_else(|| measured_sheet_mm(package)));
             }
+        }
+        match package {
+            Some(Ok(package)) => self.package_body(
+                ui,
+                store,
+                &package,
+                set,
+                orientation.name.as_str(),
+                variant,
+                sync.force,
+                &mut out,
+            ),
             Some(Err(error)) => {
                 ui.colored_label(
                     Color32::YELLOW,
@@ -673,6 +760,7 @@ impl PressTab {
     }
 
     /// Everything below the first row for a loaded package.
+    #[allow(clippy::too_many_arguments)]
     fn package_body(
         &mut self,
         ui: &mut egui::Ui,
@@ -681,6 +769,8 @@ impl PressTab {
         set: &PackageSet,
         orientation: &str,
         variant: &VariantChoice,
+        force_lock: Option<ForceLock>,
+        out: &mut PressUiOutput,
     ) {
         let branch = if package.stretch_range(self.branch).is_some() {
             self.branch
@@ -702,8 +792,15 @@ impl PressTab {
             hi > lo + 1.0e-4
         });
         let fit_problem = fit.and_then(ForceFit::degenerate);
-        let mode = self.effective_mode(fit, fit_problem.is_some());
+        let mode = if force_lock.is_some() && fit.is_some() {
+            ControlMode::Force
+        } else {
+            self.effective_mode(fit, fit_problem.is_some())
+        };
         self.hand_over_mode(mode, fit);
+        if let Some(requested) = force_lock.and_then(|lock| lock.requested_n) {
+            self.force_n = Some(requested);
+        }
 
         // Clamp state after switching branches or packages.
         self.beta = self.beta.clamp(BETA_RANGE.0, BETA_RANGE.1);
@@ -728,7 +825,7 @@ impl PressTab {
         );
 
         let relight_light = (self.relight && package.photometric().is_ok()).then_some(self.light);
-        self.mode_row(
+        out.force_changed = self.mode_row(
             ui,
             package,
             fit,
@@ -736,7 +833,24 @@ impl PressTab {
             mode,
             max_delta,
             relight_light.is_some(),
+            force_lock.is_some() && fit.is_some(),
         );
+        out.force_ready = mode == ControlMode::Force;
+        if let Some(lock) = force_lock {
+            match (fit, lock.requested_n, self.force_n) {
+                (None, _, _) => {
+                    ui.label("Force sync requires a usable force curve in this view.");
+                }
+                (Some(_), Some(requested), Some(applied))
+                    if !out.force_changed && requested != applied =>
+                {
+                    ui.label(format!(
+                        "Linked force {requested:.2} N · limited to {applied:.2} N here"
+                    ));
+                }
+                _ => {}
+            }
+        }
 
         let status_height = ui.text_style_height(&egui::TextStyle::Body) + 8.0;
         let free = ui.available_rect_before_wrap();
@@ -757,7 +871,7 @@ impl PressTab {
             beta: self.beta,
             previous_lambda: self.lambda.unwrap_or(1.0),
             view: self.view,
-            relight: relight_light,
+            relight: relight_light.map(|_| self.light),
         };
         let sheet_mm = self.sheet_mm.unwrap_or_else(|| measured_sheet_mm(package));
         let drag_projection = self.edge_drag.map(|drag| drag.projection(sheet_mm));
@@ -778,8 +892,13 @@ impl PressTab {
         self.lambda = Some(scene.solved.geometry.lambda);
 
         let edge = self.interact_with_edges(ui, &response, &scene, sheet_mm);
+        if let Some(size) = self.sheet_mm.filter(|&size| size != sheet_mm) {
+            out.sheet_size = Some(size);
+        }
         if edge.is_none() {
+            let previous_beta = self.beta;
             self.interact_with_bar(ui, &response, &scene);
+            out.bar_changed |= self.beta != previous_beta;
         }
         self.draw_cloth(ui, store, canvas, package, &scene);
         let painter = ui.painter_at(canvas);
@@ -855,13 +974,17 @@ impl PressTab {
         mode: ControlMode,
         max_delta: f32,
         relight: bool,
-    ) {
+        force_locked: bool,
+    ) -> bool {
+        let mut force_changed = false;
         ui.horizontal_wrapped(|ui| {
             let force_button = ui.add_enabled(
-                fit.is_some(),
+                fit.is_some() && !force_locked,
                 egui::Button::selectable(mode == ControlMode::Force, "Force"),
             );
-            let force_button = if fit.is_some() {
+            let force_button = if force_locked {
+                force_button.on_disabled_hover_text("Force is linked through the Sync menu")
+            } else if fit.is_some() {
                 force_button.on_hover_text("Drive the press by the strip tension, through the monotone fit of the measured curve")
             } else {
                 force_button.on_disabled_hover_text(
@@ -872,11 +995,12 @@ impl PressTab {
                 self.control = Some(ControlMode::Force);
             }
             if ui
-                .add(egui::Button::selectable(
-                    mode == ControlMode::Indentation,
-                    "Indentation",
-                ))
+                .add_enabled(
+                    !force_locked,
+                    egui::Button::selectable(mode == ControlMode::Indentation, "Indentation"),
+                )
                 .on_hover_text("Drive the press by how deep the bar pushes the sheet in")
+                .on_disabled_hover_text("Turn off Force in the Sync menu to use indentation")
                 .clicked()
             {
                 self.control = Some(ControlMode::Indentation);
@@ -886,12 +1010,13 @@ impl PressTab {
                     if let (Some(fit), Some(force)) = (fit, self.force_n.as_mut()) {
                         let (lo, hi) = fit.range();
                         let hover = tension_hover(package);
-                        ui.add(
+                        force_changed = ui.add(
                             egui::Slider::new(force, lo.min(hi)..=hi.max(lo))
                                 .suffix(" N")
                                 .text("sheet tension (strip test)"),
                         )
-                        .on_hover_text(hover);
+                        .on_hover_text(hover)
+                        .changed();
                     }
                 }
                 ControlMode::Indentation => {
@@ -921,6 +1046,7 @@ impl PressTab {
                 lighting::light_pad(ui, &mut self.light);
             }
         });
+        force_changed
     }
 
     fn interact_with_edges(
@@ -1277,6 +1403,7 @@ pub fn status_line(
 #[derive(Default)]
 pub struct PressViews {
     views: BTreeMap<u32, PressTab>,
+    links: BTreeMap<[u32; 2], PressSync>,
     next_id: u32,
     /// A view asked for another one; the host (which owns the dock) acts on it.
     pub add_requested: bool,
@@ -1325,10 +1452,124 @@ impl PressViews {
         self.views.insert(id, view);
         id
     }
+    pub fn ui(
+        &mut self,
+        id: u32,
+        ui: &mut egui::Ui,
+        slots: &[ProjectSlot],
+        default_project: Option<&Path>,
+        store: &mut PackageStore,
+    ) {
+        self.get_or_create(id);
+        if self.views.len() > 1 {
+            self.sync_menu(id, ui);
+        }
+        let pair = self.link_for(id);
+        let sync = pair.map_or_else(PressSync::default, |pair| self.links[&pair]);
+        let view = self.views.get_mut(&id).expect("view was just created");
+        let previous_light = sync.relight.unwrap_or((view.relight, view.light));
+        let out = view.ui_with_sync(ui, slots, default_project, store, sync);
+        self.add_requested |= out.add_view;
+        if let Some(pair) = pair {
+            let mut updated = sync;
+            updated.update(view, out, previous_light);
+            if updated != sync {
+                self.set_sync(pair, updated);
+                ui.ctx().request_repaint();
+            }
+        }
+    }
+
+    fn link_for(&self, id: u32) -> Option<[u32; 2]> {
+        self.links.keys().find(|pair| pair.contains(&id)).copied()
+    }
+
+    fn set_sync(&mut self, pair: [u32; 2], sync: PressSync) {
+        let old_force = self.links.insert(pair, sync).and_then(|old| old.force);
+        for id in pair {
+            if let Some(view) = self.views.get_mut(&id) {
+                sync.apply(view);
+                if sync.force != old_force {
+                    if let Some(requested) = sync.force.and_then(|force| force.requested_n) {
+                        view.force_n = Some(requested);
+                    }
+                }
+            }
+        }
+    }
+
+    fn sync_menu(&mut self, id: u32, ui: &mut egui::Ui) {
+        let title = |id| crate::ui::workspace::WorkspaceTab::Press(id).title();
+        let pair = self.link_for(id);
+        let peer = pair.and_then(|pair| pair.into_iter().find(|&other| other != id));
+        let label = peer.map_or_else(|| "Sync".into(), |peer| format!("Sync · {}", title(peer)));
+        ui.menu_button(label, |ui| {
+            if let Some(pair) = pair {
+                let mut sync = self.links[&pair];
+                let view = &self.views[&id];
+                if sync_checkbox(ui, "Bar position", sync.beta.is_some()) {
+                    sync.beta = sync.beta.is_none().then_some(view.beta);
+                }
+                if sync_checkbox(ui, "Sheet size", sync.sheet.is_some()) {
+                    sync.sheet = sync.sheet.is_none().then(|| {
+                        view.sheet_mm
+                            .map_or(SheetSizeLock::WaitingFor(id), SheetSizeLock::Size)
+                    });
+                }
+                if sync_checkbox(ui, "Force", sync.force.is_some()) {
+                    sync.force = sync.force.is_none().then_some(ForceLock {
+                        requested_n: (view.last_mode != Some(ControlMode::Indentation))
+                            .then_some(view.force_n)
+                            .flatten(),
+                    });
+                }
+                if sync_checkbox(ui, "Relighting", sync.relight.is_some()) {
+                    sync.relight = sync.relight.is_none().then_some((view.relight, view.light));
+                }
+                if sync != self.links[&pair] {
+                    self.set_sync(pair, sync);
+                    ui.ctx().request_repaint();
+                }
+                if ui.button("Unlink").clicked() {
+                    self.links.remove(&pair);
+                    ui.close();
+                    ui.ctx().request_repaint();
+                }
+            } else {
+                let mut available = self
+                    .views
+                    .keys()
+                    .copied()
+                    .filter(|&peer| peer != id && self.link_for(peer).is_none())
+                    .peekable();
+                if available.peek().is_none() {
+                    ui.label("No unlinked Press Views");
+                }
+                let peer = available
+                    .find(|&peer| ui.button(format!("Link with {}", title(peer))).clicked());
+                if let Some(peer) = peer {
+                    let mut pair = [id, peer];
+                    pair.sort_unstable();
+                    let sync = PressSync {
+                        beta: Some(self.views[&id].beta),
+                        ..Default::default()
+                    };
+                    self.set_sync(pair, sync);
+                    ui.close();
+                    ui.ctx().request_repaint();
+                }
+            }
+        });
+    }
+
     pub fn remove(&mut self, id: u32) {
+        if let Some(pair) = self.link_for(id) {
+            self.links.remove(&pair);
+        }
         self.views.remove(&id);
     }
     pub fn clear(&mut self) {
+        self.links.clear();
         self.views.clear();
         self.next_id = 0;
     }
@@ -1349,6 +1590,10 @@ impl PressViews {
             })
             .collect()
     }
+}
+
+fn sync_checkbox(ui: &mut egui::Ui, label: &str, mut checked: bool) -> bool {
+    ui.checkbox(&mut checked, label).changed()
 }
 
 #[cfg(test)]
@@ -1930,6 +2175,93 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sync_applies_only_selected_controls_and_accepts_edits_from_either_view() {
+        let mut views = PressViews::new();
+        let pair = [views.add(None), views.add(None)];
+        let [left, right] = pair;
+        let light = Light {
+            intensity: 2.0,
+            ..Light::default()
+        };
+        let mut sync = PressSync {
+            beta: Some(0.2),
+            relight: Some((true, light)),
+            ..Default::default()
+        };
+        views.get_mut(right).unwrap().force_n = Some(42.0);
+        views.get_mut(right).unwrap().sheet_mm = Some([12.0, 9.0]);
+        views.set_sync(pair, sync);
+        assert_eq!(views.get(left).unwrap().sheet_mm, None);
+        sync.sheet = Some(SheetSizeLock::Size([8.0, 6.0]));
+        views.set_sync(pair, sync);
+        let view = views.get_mut(right).unwrap();
+        assert_eq!(view.sheet_mm, Some([8.0, 6.0]));
+        assert_eq!((view.beta, view.relight, view.light), (0.2, true, light));
+        assert_eq!(view.force_n, Some(42.0));
+        view.beta = 0.7;
+        view.relight = false;
+        sync.update(
+            view,
+            PressUiOutput {
+                bar_changed: true,
+                sheet_size: Some([10.0, 6.0]),
+                ..Default::default()
+            },
+            (true, light),
+        );
+        views.set_sync(pair, sync);
+        let view = views.get(left).unwrap();
+        assert_eq!((view.beta, view.relight), (0.7, false));
+        assert_eq!(view.force_n, None);
+        assert_eq!(view.sheet_mm, Some([10.0, 6.0]));
+
+        views.remove(right);
+        assert_eq!(views.link_for(left), None);
+        assert_eq!(views.get(left).unwrap().beta, 0.7);
+    }
+
+    #[test]
+    fn force_sync_keeps_the_requested_tension_when_a_view_is_limited() {
+        let slots = vec![demo_slot()];
+        let mut store = PackageStore::default();
+        let mut view = PressTab::new();
+        view.control = Some(ControlMode::Indentation);
+        settle(&mut view, &slots, &mut store);
+
+        let mut sync = PressSync {
+            force: Some(ForceLock {
+                requested_n: Some(1.0e4),
+            }),
+            ..Default::default()
+        };
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run_ui(input, |ui| {
+            let out = view.ui_with_sync(ui, &slots, None, &mut store, sync);
+            assert!(out.force_ready);
+            assert!(!out.force_changed);
+            sync.update(&view, out, (view.relight, view.light));
+        });
+        assert_eq!(view.last_mode, Some(ControlMode::Force));
+        assert!(view.force_n.unwrap() < 1.0e4);
+        assert_eq!(sync.force.unwrap().requested_n, Some(1.0e4));
+
+        view.force_n = Some(5.0);
+        sync.update(
+            &view,
+            PressUiOutput {
+                force_changed: true,
+                ..Default::default()
+            },
+            (view.relight, view.light),
+        );
+        assert_eq!(sync.force.unwrap().requested_n, Some(5.0));
     }
 
     #[test]

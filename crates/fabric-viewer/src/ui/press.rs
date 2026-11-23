@@ -18,10 +18,5 @@ pub fn press_tab(
         return;
     }
     let default_project = selection.selected.as_ref().map(|f| f.project_root.clone());
-    let out = views
-        .get_or_create(id)
-        .ui(ui, slots, default_project.as_deref(), packages);
-    if out.add_view {
-        views.add_requested = true;
-    }
+    views.ui(id, ui, slots, default_project.as_deref(), packages);
 }
