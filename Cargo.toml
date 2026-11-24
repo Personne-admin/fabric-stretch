@@ -3,12 +3,18 @@ resolver = "2"
 members = ["crates/fabric-data", "crates/fabric-viewer"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.92"
 repository = "https://github.com/personne-admin/fabric-stretch"
-keywords = ["fabric", "textile", "photometric-stereo", "material-capture", "egui"]
+keywords = [
+  "fabric",
+  "textile",
+  "photometric-stereo",
+  "material-capture",
+  "egui",
+]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

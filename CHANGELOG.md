@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1] - 2026-11-24
+
+- Press View cloth resizes by dragging its edges while keeping the measured tile repeat.
+  Loading and release render on opposite sides of the bar.
+- Press Views can synchronize bar position, sheet size, force, and relighting.
+- Image Viewer supports three or more configurations in side-by-side and split views,
+  tracked-grid stabilization, and tile previews with optional edge blending.
+- The Windows viewer launches without allocating a console.
+
 ## [0.4.0] - 2026-11-09
 
 - Windows x64 MSI/ZIP and Linux x64 DEB/tar builds, with the viewer, CLI, rig app and demo.
